@@ -47,6 +47,33 @@ describe('pays visités', () => {
     expect(s.size).toBe(1)
   })
 
+  it('retire un pays des envies quand on le visite', () => {
+    const s = createStore(memoryStorage())
+    s.wish.add('PE')
+    s.visited.add('PE')
+    expect(s.wish.has('PE')).toBe(false)
+  })
+
+  it('garde le pays d’origine', () => {
+    const storage = memoryStorage()
+    createStore(storage).setHome('BE')
+    expect(createStore(storage).home).toBe('BE')
+  })
+
+  it('restaure une sauvegarde sans rien effacer', () => {
+    const a = createStore(memoryStorage())
+    a.add('FR')
+    a.wish.add('IS')
+    a.setHome('FR')
+    const b = createStore(memoryStorage())
+    b.add('JP')
+    expect(b.importData(a.exportData())).toBe(1)
+    expect(b.codes().sort()).toEqual(['FR', 'JP'])
+    expect(b.wish.codes()).toEqual(['IS'])
+    expect(b.home).toBe('FR')
+    expect(() => b.importData({ foo: 1 })).toThrow()
+  })
+
   it('résiste à des données abîmées', () => {
     const storage = memoryStorage()
     storage.setItem('carte-voyages:v1', '{pas du json')

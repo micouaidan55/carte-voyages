@@ -1,4 +1,6 @@
-const KEY = 'carte-voyages:v1'
+const KEY_VISITED = 'carte-voyages:v1' // nom d'origine, gardé pour ne rien perdre
+const KEY_WISH = 'carte-voyages:envies'
+const KEY_SETTINGS = 'carte-voyages:reglages'
 
 function safeStorage() {
   try {
@@ -8,47 +10,129 @@ function safeStorage() {
   }
 }
 
+function read(storage, key, fallback) {
+  try {
+    const raw = storage?.getItem(key)
+    return raw ? JSON.parse(raw) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function write(storage, key, value) {
+  try {
+    storage?.setItem(key, JSON.stringify(value))
+  } catch {
+    // Stockage indisponible (navigation privée) : on garde en mémoire.
+  }
+}
+
+function toMap(list) {
+  const map = new Map()
+  if (Array.isArray(list)) {
+    for (const item of list) if (item && typeof item.code === 'string') map.set(item.code, item.addedAt ?? Date.now())
+  }
+  return map
+}
+
 export function createStore(storage = safeStorage()) {
-  let visited = new Map()
+  const lists = {
+    visited: toMap(read(storage, KEY_VISITED, [])),
+    wish: toMap(read(storage, KEY_WISH, [])),
+  }
+  const keys = { visited: KEY_VISITED, wish: KEY_WISH }
+  let settings = read(storage, KEY_SETTINGS, {})
+  if (!settings || typeof settings !== 'object') settings = {}
   const listeners = new Set()
 
-  try {
-    const raw = storage?.getItem(KEY)
-    if (raw) {
-      for (const { code, addedAt } of JSON.parse(raw)) visited.set(code, addedAt)
-    }
-  } catch {
-    visited = new Map()
-  }
-
-  function save() {
-    try {
-      storage?.setItem(KEY, JSON.stringify([...visited].map(([code, addedAt]) => ({ code, addedAt }))))
-    } catch {
-      // Stockage indisponible (navigation privée) : on garde en mémoire.
-    }
+  function save(name) {
+    write(storage, keys[name], [...lists[name]].map(([code, addedAt]) => ({ code, addedAt })))
     listeners.forEach((fn) => fn())
   }
 
+  function api(name) {
+    const map = lists[name]
+    return {
+      has: (code) => map.has(code),
+      get size() {
+        return map.size
+      },
+      codes: () => [...map.keys()],
+      add(code, addedAt = Date.now()) {
+        if (map.has(code)) return false
+        map.set(code, addedAt)
+        // Un pays visité n'est plus une envie.
+        if (name === 'visited' && lists.wish.delete(code)) save('wish')
+        save(name)
+        return true
+      },
+      remove(code) {
+        if (!map.has(code)) return null
+        const addedAt = map.get(code)
+        map.delete(code)
+        save(name)
+        return addedAt
+      },
+    }
+  }
+
+  const visited = api('visited')
+  const wish = api('wish')
+
   return {
-    has: (code) => visited.has(code),
+    visited,
+    wish,
+    // Raccourcis gardés pour le code existant.
+    has: visited.has,
     get size() {
       return visited.size
     },
-    codes: () => [...visited.keys()],
-    add(code, addedAt = Date.now()) {
-      if (visited.has(code)) return false
-      visited.set(code, addedAt)
-      save()
-      return true
+    codes: visited.codes,
+    add: visited.add,
+    remove: visited.remove,
+
+    get home() {
+      return settings.home ?? null
     },
-    remove(code) {
-      if (!visited.has(code)) return null
-      const addedAt = visited.get(code)
-      visited.delete(code)
-      save()
-      return addedAt
+    setHome(code) {
+      settings = { ...settings, home: code }
+      write(storage, KEY_SETTINGS, settings)
+      listeners.forEach((fn) => fn())
     },
+
+    exportData() {
+      return {
+        app: 'mes-pays',
+        version: 1,
+        date: new Date().toISOString(),
+        home: settings.home ?? null,
+        visites: [...lists.visited].map(([code, addedAt]) => ({ code, addedAt })),
+        envies: [...lists.wish].map(([code, addedAt]) => ({ code, addedAt })),
+      }
+    },
+    // Fusionne une sauvegarde : rien de ce qui est déjà là n'est effacé.
+    importData(data) {
+      if (!data || data.app !== 'mes-pays') throw new Error('Ce fichier ne vient pas de Mes pays')
+      let added = 0
+      for (const [code, addedAt] of toMap(data.visites)) {
+        if (!lists.visited.has(code)) {
+          lists.visited.set(code, addedAt)
+          lists.wish.delete(code)
+          added++
+        }
+      }
+      for (const [code, addedAt] of toMap(data.envies)) {
+        if (!lists.visited.has(code) && !lists.wish.has(code)) lists.wish.set(code, addedAt)
+      }
+      if (!settings.home && typeof data.home === 'string') {
+        settings = { ...settings, home: data.home }
+        write(storage, KEY_SETTINGS, settings)
+      }
+      save('wish')
+      save('visited')
+      return added
+    },
+
     subscribe(fn) {
       listeners.add(fn)
       return () => listeners.delete(fn)
