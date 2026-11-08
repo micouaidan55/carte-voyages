@@ -1,0 +1,514 @@
+:root {
+  --bg: #f3efe7;
+  --ocean: #dde8ec;
+  --grid: rgba(40, 70, 90, 0.08);
+  --land: #d3cec4;
+  --land-edge: #f3efe7;
+  --visited: #e4683a;
+  --visited-strong: #c94f22;
+  --ink: #1d2a30;
+  --muted: #6b7479;
+  --panel: rgba(255, 253, 249, 0.86);
+  --panel-solid: #fffdf9;
+  --line: rgba(29, 42, 48, 0.1);
+  --shadow: 0 6px 24px rgba(29, 42, 48, 0.14);
+  --keyboard: 0px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101a20;
+    --ocean: #14232b;
+    --grid: rgba(180, 210, 225, 0.06);
+    --land: #3a464c;
+    --land-edge: #14232b;
+    --visited: #f07a49;
+    --visited-strong: #ff9466;
+    --ink: #eef1f2;
+    --muted: #9aa6ab;
+    --panel: rgba(28, 38, 44, 0.86);
+    --panel-solid: #1c262c;
+    --line: rgba(238, 241, 242, 0.1);
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.35 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+svg path,
+svg circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Carte ---------- */
+
+#map {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  display: block;
+}
+
+#map .sphere {
+  fill: var(--ocean);
+  stroke: none;
+}
+
+#map .graticule {
+  stroke: var(--grid);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+#map .country {
+  fill: var(--land);
+  stroke: var(--land-edge);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  transition: fill 0.25s ease;
+}
+
+#map.zoomed .country {
+  stroke-width: 1;
+}
+
+#map .country.inert {
+  cursor: default;
+}
+
+#map .country.visited {
+  fill: var(--visited);
+}
+
+#map .country.pop {
+  animation: pop 0.7s ease-out;
+}
+
+@keyframes pop {
+  0% {
+    fill: var(--visited-strong);
+    filter: brightness(1.35);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+@media (hover: hover) {
+  #map .country:not(.inert):hover {
+    filter: brightness(0.93);
+  }
+}
+
+/* ---------- Haut : compteur ---------- */
+
+.top {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.top > * {
+  pointer-events: auto;
+}
+
+.stats,
+.chip,
+.fab,
+.searchbar,
+.toast,
+.results {
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: var(--shadow);
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 12px;
+  border-radius: 18px;
+  min-height: 52px;
+}
+
+.count {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--visited);
+  font-variant-numeric: tabular-nums;
+  min-width: 1ch;
+  text-align: center;
+}
+
+.stats-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.count-label {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.land {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.land:empty {
+  display: none;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 16px 0 13px;
+  border-radius: 22px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.chip svg {
+  width: 18px;
+  height: 18px;
+}
+
+.hint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(env(safe-area-inset-top) + 78px);
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.fab {
+  position: fixed;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom) + 84px);
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.2s;
+}
+
+.fab svg {
+  width: 22px;
+  height: 22px;
+}
+
+body.typing .fab {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------- Bas : recherche et messages ---------- */
+
+.bottom {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(max(env(safe-area-inset-bottom), 12px) + var(--keyboard));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body.typing .bottom {
+  bottom: calc(var(--keyboard) + 8px);
+}
+
+.searchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 8px 0 16px;
+  border-radius: 28px;
+}
+
+.searchbar > svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  flex: none;
+}
+
+.searchbar input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px; /* 16px minimum : Safari ne zoome pas */
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.searchbar input::placeholder {
+  color: var(--muted);
+}
+
+.searchbar input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clear {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--line);
+  flex: none;
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  border-radius: 20px;
+  max-height: min(48vh, 400px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.results li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 0 12px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.results li.first {
+  background: var(--line);
+}
+
+.results li:active {
+  background: var(--line);
+}
+
+.flag {
+  font-size: 24px;
+  line-height: 1;
+  flex: none;
+}
+
+.results .name {
+  flex: 1;
+  font-size: 17px;
+}
+
+.results .state {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--visited);
+}
+
+.results .done .state {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.results .none {
+  color: var(--muted);
+  cursor: default;
+}
+
+.toast {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  padding: 10px 10px 10px 16px;
+  border-radius: 16px;
+  font-size: 15px;
+  animation: rise 0.22s ease-out;
+}
+
+.toast #toast-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast button {
+  flex: none;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: var(--visited);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------- Feuille « Ma liste » ---------- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-solid);
+  border-radius: 22px 22px 0 0;
+  box-shadow: var(--shadow);
+  padding-bottom: env(safe-area-inset-bottom);
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+body.sheet-open .sheet {
+  transform: none;
+}
+
+body.sheet-open .backdrop {
+  opacity: 1;
+}
+
+.grabber {
+  width: 38px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  margin: 8px auto 0;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px 8px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 20px;
+}
+
+.link {
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--visited);
+  font-size: 16px;
+}
+
+.link.strong {
+  font-weight: 700;
+}
+
+.visited-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.visited-list li {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  margin-left: 20px;
+}
+
+.visited-list .row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  text-align: left;
+  font-size: 17px;
+}
+
+.visited-list .remove {
+  min-height: 44px;
+  padding: 0 18px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.empty {
+  margin: 0;
+  padding: 36px 24px 44px;
+  text-align: center;
+  color: var(--muted);
+}
