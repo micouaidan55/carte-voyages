@@ -22,6 +22,8 @@ import {
   zoneRange,
 } from './info.js'
 import { createStore } from './store.js'
+import { SOURCE, formatTaux, getTaux } from './taux.js'
+import { afficheSvg, svgEnPng } from './affiche.js'
 import {
   API_PAR_DEFAUT,
   ENVIES,
@@ -255,6 +257,7 @@ function renderFiche() {
   bw.hidden = visited
   bw.innerHTML = wish ? '<span aria-hidden="true">★</span> Dans mes envies' : '<span aria-hidden="true">☆</span> J’ai envie d’y aller'
 
+  renderMemory()
   renderTrip()
 
   const facts = []
@@ -262,11 +265,13 @@ function renderFiche() {
   fact('Capitale', p?.capitale?.nom)
   const langs = languesOf(code)
   fact(langs.length > 1 ? 'Langues' : 'Langue', langs.join(', '))
-  fact('Monnaie', monnaieOf(code))
+  const monnaie = monnaieOf(code)
+  if (monnaie) facts.push(`<div class="wide"><dt>Monnaie</dt><dd>${esc(monnaie)}<span id="f-rate" class="rate"></span></dd></div>`)
   fact('Population', formatPopulation(p?.population))
   fact('Superficie', p?.superficie && `${Math.round(p.superficie).toLocaleString('fr-FR')} km²`)
   fact('Indicatif', p?.indicatif)
   $('f-facts').innerHTML = facts.join('') || '<div><dd>Pas d’informations pour ce territoire.</dd></div>'
+  renderRate(code)
 
   const voisins = (p?.voisins ?? []).filter((c) => PAYS[c]).sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'fr'))
   $('f-neighbours-box').hidden = voisins.length === 0
@@ -280,6 +285,62 @@ function renderFiche() {
       return b
     }),
   )
+}
+
+// ---------- Souvenirs ----------
+
+{
+  const year = new Date().getFullYear()
+  $('f-year').append(new Option('Je ne sais plus', ''))
+  for (let y = year; y >= 1950; y--) $('f-year').append(new Option(String(y), String(y)))
+}
+
+function renderMemory() {
+  const code = selected
+  const visited = store.visited.has(code)
+  $('f-memory').hidden = !visited
+  if (!visited) return
+  const s = store.souvenir(code)
+  $('f-year').value = s.annee ? String(s.annee) : ''
+  $('f-heart').setAttribute('aria-pressed', s.coeur)
+  $('f-heart').textContent = s.coeur ? '❤️' : '♡'
+  // Ne pas écraser ce que l'utilisateur est en train d'écrire.
+  if (document.activeElement !== $('f-note')) $('f-note').value = s.texte
+}
+
+$('f-year').addEventListener('change', () => {
+  store.setSouvenir(selected, { annee: $('f-year').value ? Number($('f-year').value) : null })
+})
+$('f-heart').addEventListener('click', () => {
+  store.setSouvenir(selected, { coeur: !store.souvenir(selected).coeur })
+})
+{
+  let timer
+  $('f-note').addEventListener('input', () => {
+    const code = selected
+    const texte = $('f-note').value
+    clearTimeout(timer)
+    timer = setTimeout(() => store.setSouvenir(code, { texte }), 400)
+  })
+  $('f-note').addEventListener('blur', () => {
+    clearTimeout(timer)
+    if (selected) store.setSouvenir(selected, { texte: $('f-note').value })
+  })
+}
+
+// ---------- Taux de change ----------
+
+async function renderRate(code) {
+  const to = PAYS[code]?.monnaie
+  const from = (store.home && PAYS[store.home]?.monnaie) || 'EUR'
+  if (!to || to === from) return
+  const taux = await getTaux(from)
+  const el = $('f-rate')
+  if (!el || selected !== code || !taux?.rates?.[to]) return
+  const texte = formatTaux(taux.rates[to], from, to)
+  if (!texte) return
+  const jour = new Date(taux.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+  el.innerHTML = `<strong>${esc(texte)}</strong><small>Taux du ${esc(jour)} · <a href="${SOURCE.url}" target="_blank" rel="noopener">${SOURCE.nom}</a></small>`
 }
 
 function renderTrip() {
@@ -561,8 +622,11 @@ function renderList() {
   const list = tab === 'visited' ? store.visited : store.wish
   const items = list
     .codes()
-    .map((code) => ({ code, name: nameOf(code) }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    .map((code) => ({ code, name: nameOf(code), ...(tab === 'visited' ? store.souvenir(code) : {}) }))
+    .sort((a, b) => (b.annee ?? 0) - (a.annee ?? 0) || a.name.localeCompare(b.name, 'fr'))
+  // Classement par année dès qu'au moins un pays en a une.
+  const parAnnee = tab === 'visited' && items.some((i) => i.annee)
+  let groupe = undefined
   $('visited-list').hidden = false
   $('progress').hidden = true
   $('empty').hidden = items.length > 0
@@ -571,9 +635,19 @@ function renderList() {
       ? 'Aucun pays pour l’instant.<br />Touchez la carte ou cherchez un pays en bas.'
       : 'Aucune envie pour l’instant.<br />Ouvrez la fiche d’un pays et touchez « J’ai envie d’y aller ».'
   $('visited-list').replaceChildren(
-    ...items.map(({ code, name }) => {
+    ...items.flatMap(({ code, name, annee, coeur }) => {
+      const out = []
+      if (parAnnee && (annee ?? null) !== groupe) {
+        groupe = annee ?? null
+        const h = document.createElement('li')
+        h.className = 'group'
+        const n = items.filter((i) => (i.annee ?? null) === groupe).length
+        h.textContent = `${groupe ?? 'Année non précisée'} · ${n} pays`
+        out.push(h)
+      }
       const li = document.createElement('li')
-      li.innerHTML = `<button class="row" type="button"><span class="flag">${flagOf(code)}</span><span class="name"></span></button>${
+      out.push(li)
+      li.innerHTML = `<button class="row" type="button"><span class="flag">${flagOf(code)}</span><span class="name"></span>${coeur ? '<span class="fav" aria-label="coup de cœur">❤️</span>' : ''}</button>${
         tab === 'wish' ? '<button class="go" type="button">J’y suis allé</button>' : ''
       }<button class="remove" type="button">Retirer</button>`
       li.querySelector('.name').textContent = name
@@ -590,7 +664,7 @@ function renderList() {
           toast(`Retiré des envies : ${label(code)}`, () => store.wish.add(code, addedAt))
         }
       })
-      return li
+      return out
     }),
   )
 }
@@ -607,15 +681,68 @@ $('btn-list').addEventListener('click', () => {
   showModal($('sheet'))
 })
 
+function couleurs() {
+  const css = getComputedStyle(document.documentElement)
+  const v = (name) => css.getPropertyValue(name).trim()
+  return {
+    fond: v('--bg'),
+    ocean: v('--ocean'),
+    terre: v('--land'),
+    bord: v('--land-edge'),
+    visite: v('--visited'),
+    envie: v('--wish'),
+    texte: v('--ink'),
+    doux: v('--muted'),
+  }
+}
+
+async function imageCarte() {
+  const n = store.visited.size
+  const p = progress(store.visited.codes())
+  const continents = p.list.filter((r) => r.done).length
+  const share = store.visited.codes().reduce((sum, c) => sum + (areaByCode.get(c) ?? 0), 0) / totalArea
+  const lignes = [`${formatPercent(share)} des terres du globe · ${continents} continent${continents > 1 ? 's' : ''}`]
+  const annees = store.visited.codes().map((c) => store.souvenir(c).annee).filter(Boolean)
+  if (annees.length) lignes.push(`De ${Math.min(...annees)} à ${Math.max(...annees)}`)
+  if (store.wish.size) lignes.push(`Et ${store.wish.size} envie${store.wish.size > 1 ? 's' : ''} en bleu`)
+  const svg = afficheSvg({
+    shapes,
+    visited: new Set(store.visited.codes()),
+    wish: new Set(store.wish.codes()),
+    couleurs: couleurs(),
+    titre: String(n),
+    sousTitre: n > 1 ? 'pays visités' : 'pays visité',
+    lignes,
+  })
+  return svgEnPng(svg)
+}
+
 $('btn-share').addEventListener('click', async () => {
   const sorted = (codes) => codes.sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'fr')).map(label)
   const parts = []
   if (store.visited.size) parts.push(`J'ai visité ${store.visited.size} pays :\n${sorted(store.visited.codes()).join('\n')}`)
   if (store.wish.size) parts.push(`Mes envies :\n${sorted(store.wish.codes()).join('\n')}`)
   const text = parts.join('\n\n')
+  let file = null
   try {
-    if (navigator.share) await navigator.share({ title: 'Mes pays', text })
-    else {
+    file = new File([await imageCarte()], 'ma-carte-du-monde.png', { type: 'image/png' })
+  } catch {
+    file = null
+  }
+  try {
+    if (file && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], text, title: 'Mes pays' })
+    } else if (navigator.share) {
+      await navigator.share({ title: 'Mes pays', text })
+    } else if (file) {
+      const url = URL.createObjectURL(file)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast('Image de la carte enregistrée')
+    } else {
       await navigator.clipboard.writeText(text)
       toast('Liste copiée')
     }
@@ -854,7 +981,7 @@ $('home-form').addEventListener('submit', (e) => {
 })
 
 $('btn-export').addEventListener('click', async () => {
-  const data = JSON.stringify(store.exportData(), null, 2)
+  const data = JSON.stringify({ ...store.exportData(), voyages: trips.list() }, null, 2)
   const date = new Date().toISOString().slice(0, 10)
   const file = new File([data], `mes-pays-${date}.json`, { type: 'application/json' })
   try {
@@ -878,9 +1005,20 @@ $('import-file').addEventListener('change', async (e) => {
   e.target.value = ''
   if (!file) return
   try {
-    const added = store.importData(JSON.parse(await file.text()))
+    const data = JSON.parse(await file.text())
+    const added = store.importData(data)
+    let voyages = 0
+    for (const t of Array.isArray(data.voyages) ? data.voyages : []) {
+      if (t && typeof t.id === 'string' && typeof t.code === 'string' && Array.isArray(t.itineraire?.jours) && !trips.get(t.id)) {
+        trips.restore(t)
+        voyages++
+      }
+    }
     renderHome()
-    toast(added ? `${added} pays restauré${added > 1 ? 's' : ''}` : 'Sauvegarde déjà à jour')
+    const bits = []
+    if (added) bits.push(`${added} pays`)
+    if (voyages) bits.push(`${voyages} voyage${voyages > 1 ? 's' : ''}`)
+    toast(bits.length ? `Restauré : ${bits.join(' et ')}` : 'Sauvegarde déjà à jour')
   } catch (err) {
     toast(err.message.includes('Mes pays') ? err.message : 'Fichier illisible')
   }

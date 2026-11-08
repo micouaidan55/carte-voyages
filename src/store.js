@@ -1,6 +1,27 @@
 const KEY_VISITED = 'carte-voyages:v1' // nom d'origine, gardé pour ne rien perdre
 const KEY_WISH = 'carte-voyages:envies'
 const KEY_SETTINGS = 'carte-voyages:reglages'
+const KEY_SOUVENIRS = 'carte-voyages:souvenirs'
+
+// Un souvenir : année de visite, coup de cœur, quelques mots.
+function cleanSouvenir(s) {
+  if (!s || typeof s !== 'object') return null
+  const annee = Number.isInteger(s.annee) && s.annee >= 1900 && s.annee <= 2100 ? s.annee : null
+  const coeur = s.coeur === true
+  const texte = typeof s.texte === 'string' ? s.texte.slice(0, 1000) : ''
+  return annee || coeur || texte ? { annee, coeur, texte } : null
+}
+
+function toSouvenirs(obj) {
+  const out = {}
+  if (obj && typeof obj === 'object') {
+    for (const [code, s] of Object.entries(obj)) {
+      const clean = cleanSouvenir(s)
+      if (clean && /^[A-Z]{2}$/.test(code)) out[code] = clean
+    }
+  }
+  return out
+}
 
 function safeStorage() {
   try {
@@ -41,6 +62,7 @@ export function createStore(storage = safeStorage()) {
     wish: toMap(read(storage, KEY_WISH, [])),
   }
   const keys = { visited: KEY_VISITED, wish: KEY_WISH }
+  let souvenirs = toSouvenirs(read(storage, KEY_SOUVENIRS, {}))
   let settings = read(storage, KEY_SETTINGS, {})
   if (!settings || typeof settings !== 'object') settings = {}
   const listeners = new Set()
@@ -91,6 +113,16 @@ export function createStore(storage = safeStorage()) {
     add: visited.add,
     remove: visited.remove,
 
+    souvenir: (code) => souvenirs[code] ?? { annee: null, coeur: false, texte: '' },
+    setSouvenir(code, patch) {
+      const next = cleanSouvenir({ ...(souvenirs[code] ?? {}), ...patch })
+      souvenirs = { ...souvenirs }
+      if (next) souvenirs[code] = next
+      else delete souvenirs[code]
+      write(storage, KEY_SOUVENIRS, souvenirs)
+      listeners.forEach((fn) => fn())
+    },
+
     get home() {
       return settings.home ?? null
     },
@@ -108,6 +140,7 @@ export function createStore(storage = safeStorage()) {
         home: settings.home ?? null,
         visites: [...lists.visited].map(([code, addedAt]) => ({ code, addedAt })),
         envies: [...lists.wish].map(([code, addedAt]) => ({ code, addedAt })),
+        souvenirs,
       }
     },
     // Fusionne une sauvegarde : rien de ce qui est déjà là n'est effacé.
@@ -124,6 +157,9 @@ export function createStore(storage = safeStorage()) {
       for (const [code, addedAt] of toMap(data.envies)) {
         if (!lists.visited.has(code) && !lists.wish.has(code)) lists.wish.set(code, addedAt)
       }
+      const recus = toSouvenirs(data.souvenirs)
+      souvenirs = { ...recus, ...souvenirs } // ce qui est déjà sur le téléphone gagne
+      write(storage, KEY_SOUVENIRS, souvenirs)
       if (!settings.home && typeof data.home === 'string') {
         settings = { ...settings, home: data.home }
         write(storage, KEY_SETTINGS, settings)

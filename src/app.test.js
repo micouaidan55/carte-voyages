@@ -74,6 +74,23 @@ describe('pays visités', () => {
     expect(() => b.importData({ foo: 1 })).toThrow()
   })
 
+  it('garde les souvenirs et les inclut dans la sauvegarde', () => {
+    const storage = memoryStorage()
+    const a = createStore(storage)
+    a.setSouvenir('IT', { annee: 2019, coeur: true })
+    a.setSouvenir('IT', { texte: 'Pâtes à Bologne' })
+    a.setSouvenir('ES', { annee: 3000 })
+    const b = createStore(storage)
+    expect(b.souvenir('IT')).toEqual({ annee: 2019, coeur: true, texte: 'Pâtes à Bologne' })
+    expect(b.souvenir('ES').annee).toBeNull()
+    const c = createStore(memoryStorage())
+    c.setSouvenir('IT', { annee: 2021 })
+    c.importData(b.exportData())
+    expect(c.souvenir('IT').annee).toBe(2021) // le téléphone garde sa version
+    b.setSouvenir('IT', { annee: null, coeur: false, texte: '' })
+    expect(createStore(storage).exportData().souvenirs).toEqual({})
+  })
+
   it('résiste à des données abîmées', () => {
     const storage = memoryStorage()
     storage.setItem('carte-voyages:v1', '{pas du json')

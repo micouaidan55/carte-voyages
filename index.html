@@ -93,6 +93,17 @@
           <button id="f-plan" class="action plan" type="button">🧳 Préparer un voyage</button>
         </div>
         <div class="fiche-body">
+          <section class="card memory" id="f-memory" hidden>
+            <div class="card-head">
+              <h3>Mon souvenir</h3>
+              <button id="f-heart" class="heart" type="button" aria-pressed="false" aria-label="Coup de cœur">♡</button>
+            </div>
+            <div class="memory-row">
+              <label for="f-year">Année du voyage</label>
+              <select id="f-year" class="year"></select>
+            </div>
+            <textarea id="f-note" class="note" rows="2" maxlength="1000" placeholder="Un moment, un plat, une rencontre…"></textarea>
+          </section>
           <section class="card" id="f-trip"></section>
           <section class="card">
             <dl id="f-facts" class="facts"></dl>

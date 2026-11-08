@@ -1315,3 +1315,101 @@ body.fiche-open .bottom .toast {
 .tabs button {
   font-size: 13.5px;
 }
+
+/* ---------- Souvenirs, taux, liste par année ---------- */
+
+.memory .card-head h3 {
+  color: var(--visited);
+}
+
+.heart {
+  width: 40px;
+  height: 40px;
+  margin: -6px -6px -6px 0;
+  border-radius: 20px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.memory-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  font-size: 15.5px;
+}
+
+.year {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-solid);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.note {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-solid);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  resize: none;
+  outline: 0;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.note:focus {
+  border-color: var(--visited);
+}
+
+.facts .wide {
+  grid-column: 1 / -1;
+}
+
+.rate {
+  display: block;
+  margin-top: 2px;
+}
+
+.rate strong {
+  display: block;
+  color: var(--visited);
+  font-size: 15.5px;
+}
+
+.rate small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.rate a {
+  color: inherit;
+}
+
+.visited-list li.group {
+  display: block;
+  margin: 14px 0 2px 20px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--visited);
+}
+
+.visited-list .fav {
+  margin-left: auto;
+  padding-right: 4px;
+  font-size: 15px;
+}
