@@ -1671,3 +1671,114 @@ body.typing .fiche {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Réserver */
+.res-dates {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.res-dates > * {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.res-dates > label {
+  flex: 1;
+  min-width: 0;
+}
+
+.stepper.small output {
+  min-width: 36px;
+}
+
+.stepper.small button {
+  width: 40px;
+}
+
+#v-res-retour {
+  margin: 8px 0 0;
+}
+
+#v-res-retour::first-letter {
+  text-transform: uppercase;
+}
+
+.res-cat h4 {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.res-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.res-check {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.res-check input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--visited);
+  flex: none;
+}
+
+.res-check span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.res-check strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.res-check small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.res-item.ok strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.res-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: none;
+  max-width: 50%;
+}
+
+.res-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 18px;
+  background: var(--bg);
+  color: var(--visited);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}

@@ -26,6 +26,7 @@ import { loadVilles, searchVilles } from './villes.js'
 import { genererValise, progression } from './valise.js'
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
+import { aReserver, departPropose, plusJours } from './reserver.js'
 import {
   API_PAR_DEFAUT,
   ENVIES,
@@ -1006,7 +1007,7 @@ function voyageView(view) {
     $(id).hidden = view !== name
   $('v-share').hidden = view !== 'result'
   if (view === 'result') showPanel('plan')
-  else for (const id of ['v-result', 'v-valise', 'v-vols']) $(id).hidden = true
+  else for (const id of ['v-result', 'v-valise', 'v-vols', 'v-reserver']) $(id).hidden = true
   $('v-body').scrollTop = 0
 }
 
@@ -1015,10 +1016,12 @@ function showPanel(name) {
   $('v-result').hidden = name !== 'plan'
   $('v-valise').hidden = name !== 'valise'
   $('v-vols').hidden = name !== 'vols'
+  $('v-reserver').hidden = name !== 'reserver'
   $('v-result-actions').hidden = name !== 'plan'
   for (const b of $('v-tabs').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.panel === name)
   if (name === 'valise') renderValise()
   if (name === 'vols') renderVols()
+  if (name === 'reserver') renderReserver()
   updateTabCounts()
 }
 
@@ -1047,6 +1050,9 @@ function updateTabCounts() {
   $('v-valise-count').textContent = p.total ? `${p.ok}/${p.total}` : ''
   const n = tripShown.vols?.length ?? 0
   $('v-vols-count').textContent = n ? `(${n})` : ''
+  const r = tripShown.reserver
+  const faits = r ? Object.values(r.faits ?? {}).filter(Boolean).length : 0
+  $('v-res-count').textContent = faits ? `✓${faits}` : ''
 }
 
 function saveValise(valise) {
@@ -1147,6 +1153,82 @@ $('v-vols-form').addEventListener('submit', async (e) => {
     $('v-vols-go').disabled = false
   }
 })
+
+// Onglet Réserver : liens préremplis (dates, voyageurs) et suivi de ce qui est réservé.
+function reservationOf(t) {
+  if (t.reserver?.depart) return t.reserver
+  return { depart: departPropose(t.demande?.mois), adultes: t.demande?.voyageurs === 'seul' ? 1 : 2, faits: {} }
+}
+
+function saveReservation(patch) {
+  tripShown = trips.update(tripShown.id, { reserver: { ...reservationOf(tripShown), ...patch } })
+  renderReserver()
+}
+
+function renderReserver() {
+  if (!tripShown) return
+  const r = reservationOf(tripShown)
+  const nbJours = tripShown.demande?.jours ?? tripShown.itineraire?.jours?.length ?? 5
+  $('v-res-date').value = r.depart
+  $('v-res-date').min = new Date().toISOString().slice(0, 10)
+  $('v-res-adultes').textContent = String(r.adultes)
+  $('v-res-moins').disabled = r.adultes <= 1
+  $('v-res-plus').disabled = r.adultes >= 9
+  $('v-res-retour').textContent = `Retour le ${new Date(`${plusJours(r.depart, nbJours)}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} · ${nbJours} jour${nbJours > 1 ? 's' : ''}`
+  const home = store.home && store.home !== tripShown.code ? store.home : null
+  const km = home ? trip(home, tripShown.code).km : null
+  const items = aReserver({
+    it: tripShown.itineraire,
+    pays: nameOf(tripShown.code),
+    depuis: home ? PAYS[home]?.capitale?.nom || nameOf(home) : '',
+    ville: tripShown.demande?.ville,
+    aller: r.depart,
+    jours: nbJours,
+    adultes: r.adultes,
+    avion: !(km && km < 700),
+  })
+  const cats = [...new Set(items.map((i) => i.cat))]
+  $('v-res-list').replaceChildren(
+    ...(home ? [] : [Object.assign(document.createElement('p'), { className: 'help', textContent: 'Indiquez votre pays d’origine dans les réglages pour voir les vols.' })]),
+    ...cats.map((cat) => {
+      const box = document.createElement('section')
+      box.className = 'res-cat'
+      const h = document.createElement('h4')
+      h.textContent = cat
+      box.append(h)
+      for (const item of items.filter((i) => i.cat === cat)) {
+        const fait = Boolean(r.faits?.[item.cle])
+        const row = document.createElement('div')
+        row.className = 'res-item' + (fait ? ' ok' : '')
+        row.innerHTML = '<label class="res-check"><input type="checkbox" /><span><strong></strong><small></small></span></label><div class="res-links"></div>'
+        row.querySelector('input').checked = fait
+        row.querySelector('strong').textContent = item.titre
+        row.querySelector('small').textContent = fait ? `${item.detail} · réservé` : item.detail
+        row.querySelector('input').addEventListener('change', (e) =>
+          saveReservation({ faits: { ...r.faits, [item.cle]: e.target.checked } }),
+        )
+        for (const l of item.liens) {
+          const a = document.createElement('a')
+          a.className = 'res-link'
+          a.href = l.url
+          a.target = '_blank'
+          a.rel = 'noopener noreferrer'
+          a.textContent = l.nom
+          row.querySelector('.res-links').append(a)
+        }
+        box.append(row)
+      }
+      return box
+    }),
+  )
+  updateTabCounts()
+}
+
+$('v-res-date').addEventListener('change', (e) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) saveReservation({ depart: e.target.value })
+})
+$('v-res-moins').addEventListener('click', () => saveReservation({ adultes: Math.max(1, reservationOf(tripShown).adultes - 1) }))
+$('v-res-plus').addEventListener('click', () => saveReservation({ adultes: Math.min(9, reservationOf(tripShown).adultes + 1) }))
 
 function openVoyage(code) {
   voyagePays = code

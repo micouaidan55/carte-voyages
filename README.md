@@ -10,6 +10,7 @@ Une carte du monde pour cocher, un par un, les pays déjà visités. Pensée pou
 - Taux de change dans la fiche (« 1 € ≈ 177 ¥ »), depuis la monnaie de votre pays, gardés en mémoire pour le hors-ligne (source : ExchangeRate-API).
 - « Ma liste » : pays visités, envies (en bleu sur la carte), voyages préparés et progression par continent sur les 195 pays. « Partager » envoie une image de votre carte (1080 × 1350) avec la liste.
 - « Préparer un voyage » depuis la fiche d'un pays : nombre de jours, période, envies, budget, rythme → itinéraire jour par jour avec activités et restaurants (liens Google Maps), préparé par Claude. Les voyages sont gardés dans « Ma liste ». Chaque voyage a aussi une liste de valise (proposée selon la destination, la saison et les envies, modifiable) et ses trajets : on colle l'e-mail de confirmation d'un vol ou d'un train, Claude en extrait horaires, numéros et référence (≈ 1,5 centime).
+- Onglet « Réserver » d'un voyage : date de départ et nombre de voyageurs, puis des liens déjà remplis vers Google Vols (ou les horaires de train pour un pays proche), Booking et Airbnb (une ligne par étape, avec les bonnes nuits), GetYourGuide pour chaque activité et une recherche pour réserver chaque restaurant. Le paiement se fait sur ces sites ; on coche dans l'application ce qui est réservé.
 - Sauvegarde et restauration dans un fichier (pays, envies, souvenirs, voyages), pour changer de téléphone sans rien perdre.
 - Les pays sont gardés sur l'appareil (aucun compte, aucun serveur).
 

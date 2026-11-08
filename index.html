@@ -219,6 +219,7 @@
             <button type="button" data-panel="plan" aria-pressed="true">Itinéraire</button>
             <button type="button" data-panel="valise">Valise <span id="v-valise-count"></span></button>
             <button type="button" data-panel="vols">Trajets <span id="v-vols-count"></span></button>
+            <button type="button" data-panel="reserver">Réserver <span id="v-res-count"></span></button>
           </div>
           <div id="v-result" hidden></div>
           <div id="v-valise" class="valise" hidden>
@@ -237,6 +238,21 @@
               <p class="help center">Le texte passe par votre serveur puis Claude pour être lu ; il n’est pas conservé. Seuls les trajets sont gardés sur ce téléphone.</p>
               <p id="v-vols-status" class="help center" aria-live="polite"></p>
             </form>
+          </div>
+          <div id="v-reserver" class="reserver" hidden>
+            <div class="res-dates">
+              <label class="v-label">Départ <input id="v-res-date" class="v-input" type="date" /></label>
+              <div class="v-label">Voyageurs
+                <div class="stepper small">
+                  <button id="v-res-moins" type="button" aria-label="Un voyageur de moins">−</button>
+                  <output id="v-res-adultes">2</output>
+                  <button id="v-res-plus" type="button" aria-label="Un voyageur de plus">＋</button>
+                </div>
+              </div>
+            </div>
+            <p id="v-res-retour" class="help"></p>
+            <div id="v-res-list"></div>
+            <p class="help center">Les liens ouvrent Google Vols, Booking, Airbnb ou GetYourGuide avec vos dates déjà remplies. Le paiement se fait sur ces sites ; cochez ici ce qui est réservé.</p>
           </div>
           <div id="v-result-actions" class="buttons result-actions" hidden>
             <button id="v-new" class="button secondary" type="button">Préparer une autre version</button>
