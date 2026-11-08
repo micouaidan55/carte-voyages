@@ -1850,3 +1850,59 @@ body.typing .fiche {
   color: var(--muted);
   font-weight: 600;
 }
+
+.prep-depart {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.prep-depart label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  flex: none;
+  width: 48%;
+}
+
+.prep-count {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6px;
+  min-width: 0;
+}
+
+.prep-count strong {
+  font-size: 16px;
+}
+
+.prep-count small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.prep-count small.urgent,
+.due.retard,
+.due.urgent {
+  color: var(--visited);
+  font-weight: 600;
+}
+
+.prep-ics {
+  width: 100%;
+  margin: 10px 0 12px;
+}
+
+.valise-item .due {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.valise-item .due.retard,
+.valise-item .due.urgent {
+  color: var(--visited);
+  font-weight: 600;
+}

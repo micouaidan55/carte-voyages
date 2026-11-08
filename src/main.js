@@ -27,6 +27,7 @@ import { PARTIES, fusionnerValise, genererValise, progression } from './valise.j
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import { aReserver, departPropose, plusJours } from './reserver.js'
+import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage } from './rappels.js'
 import {
   API_PAR_DEFAUT,
   ENVIES,
@@ -735,7 +736,8 @@ function renderList() {
         const quand = new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
         li.innerHTML = `<button class="row" type="button"><span class="flag">${flagOf(t.code)}</span><span class="name"><span class="trip-name"></span><small></small></span></button><button class="remove" type="button">Supprimer</button>`
         li.querySelector('.trip-name').textContent = t.itineraire.titre
-        li.querySelector('small').textContent = `${t.demande.jours} jour${t.demande.jours > 1 ? 's' : ''} · préparé le ${quand}`
+        const rebours = t.reserver?.depart ? compteARebours(t.reserver.depart, plusJours(t.reserver.depart, t.demande.jours), aujourdhui()) : null
+        li.querySelector('small').textContent = `${t.demande.jours} jour${t.demande.jours > 1 ? 's' : ''} · ${rebours ?? `préparé le ${quand}`}`
         li.querySelector('.row').addEventListener('click', () => openTrip(t.id))
         li.querySelector('.remove').addEventListener('click', () => {
           const removed = trips.remove(t.id)
@@ -1061,6 +1063,47 @@ function valiseOf(t) {
   return valise
 }
 
+function datesOf(t) {
+  const depart = reservationOf(t).depart
+  const jours = t.demande?.jours ?? t.itineraire?.jours?.length ?? 5
+  return { depart, retour: plusJours(depart, jours) }
+}
+
+$('v-prep-date').addEventListener('change', (e) => {
+  if (!tripShown || !/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) return
+  tripShown = trips.update(tripShown.id, { reserver: { ...reservationOf(tripShown), depart: e.target.value } })
+  renderValise()
+})
+
+$('v-ics').addEventListener('click', async () => {
+  if (!tripShown) return
+  const { depart, retour } = datesOf(tripShown)
+  const valise = valiseOf(tripShown)
+  const today = aujourdhui()
+  const rappels = valise
+    .filter((i) => i.g === 'avant' && !i.ok)
+    .map((i) => ({ t: i.t, e: echeance(i, depart, today) }))
+    .filter((r) => r.e)
+    .map((r) => ({ t: r.t, date: r.e.date < today ? today : r.e.date }))
+  const ics = icsVoyage({
+    id: tripShown.id,
+    titre: tripShown.itineraire.titre,
+    lieu: nameOf(tripShown.code),
+    depart,
+    retour,
+    vols: tripShown.vols ?? [],
+    rappels,
+  })
+  const file = new File([ics], `voyage-${tripShown.code.toLowerCase()}.ics`, { type: 'text/calendar' })
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  toast(`Calendrier : voyage, ${tripShown.vols?.length ?? 0} trajet(s) et ${rappels.length} rappel(s)`)
+})
+
 function togglePrep(cle) {
   if (!tripShown) return
   const opts = { ...prepOptions(tripShown), [cle]: !prepOptions(tripShown)[cle] }
@@ -1094,6 +1137,13 @@ function renderValise() {
   $('v-prep-bebe').setAttribute('aria-pressed', opts.bebe)
   $('v-prep-enfants').setAttribute('aria-pressed', opts.enfants)
   $('v-valise-bar').style.width = `${progression(valise).pct}%`
+  const today = aujourdhui()
+  const { depart, retour } = datesOf(tripShown)
+  $('v-prep-date').value = depart
+  $('v-prep-count').textContent = compteARebours(depart, retour, today) + (tripShown.reserver?.depart ? '' : ' (date à confirmer)')
+  const urgent = aFaireMaintenant(valise, depart, today).length
+  $('v-prep-todo').textContent = urgent ? `${urgent} chose${urgent > 1 ? 's' : ''} à faire maintenant` : 'Rien d’urgent pour l’instant'
+  $('v-prep-todo').className = urgent ? 'urgent' : ''
   const parties = PARTIES.filter((p) => p.id !== 'bebe' || valise.some((i) => i.g === 'bebe'))
   const partieDe = (i) => i.g ?? 'valise'
   $('v-prep-nav').replaceChildren(
@@ -1133,6 +1183,16 @@ function renderValise() {
           row.className = 'valise-item' + (item.ok ? ' ok' : '')
           row.innerHTML = `<label><input type="checkbox" ${item.ok ? 'checked' : ''} /><span></span></label><button class="x" type="button" aria-label="Retirer">✕</button>`
           row.querySelector('span').textContent = item.t
+          const due = item.g === 'avant' ? echeance(item, depart, today) : null
+          if (due && due.etat !== 'fait') {
+            const small = document.createElement('small')
+            small.className = `due ${due.etat}`
+            small.textContent =
+              due.etat === 'retard' || due.reste === 0
+                ? 'à faire maintenant'
+                : `avant le ${new Date(`${due.date}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })}`
+            row.querySelector('span').append(small)
+          }
           row.querySelector('input').addEventListener('change', (e) => {
             saveValise(valise.map((it, j) => (j === i ? { ...it, ok: e.target.checked } : it)))
           })

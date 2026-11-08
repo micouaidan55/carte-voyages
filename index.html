@@ -224,6 +224,11 @@
           </div>
           <div id="v-result" hidden></div>
           <div id="v-valise" class="valise" hidden>
+            <div class="prep-depart">
+              <label class="v-label">Départ <input id="v-prep-date" class="v-input" type="date" /></label>
+              <div class="prep-count"><strong id="v-prep-count"></strong><small id="v-prep-todo"></small></div>
+            </div>
+            <button id="v-ics" class="button secondary prep-ics" type="button">📅 Ajouter au calendrier</button>
             <div class="prep-options chips">
               <button id="v-prep-bebe" class="chip-toggle" type="button" aria-pressed="false">👶 Avec un bébé</button>
               <button id="v-prep-enfants" class="chip-toggle" type="button" aria-pressed="false">🧒 Avec des enfants</button>
