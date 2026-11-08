@@ -22,6 +22,17 @@ import {
   zoneRange,
 } from './info.js'
 import { createStore } from './store.js'
+import {
+  API_PAR_DEFAUT,
+  ENVIES,
+  createTrips,
+  demanderItineraire,
+  itineraireHtml,
+  itineraireTexte,
+  reveiller,
+} from './voyage.js'
+
+const trips = createTrips()
 
 const store = createStore()
 const index = buildIndex()
@@ -460,6 +471,10 @@ let openModal = null
 function showModal(el) {
   closeFiche()
   closeSearch()
+  if (openModal && openModal !== el) {
+    openModal.classList.remove('open')
+    openModal.hidden = true
+  }
   openModal = el
   el.hidden = false
   $('sheet-backdrop').hidden = false
@@ -494,6 +509,34 @@ function renderList() {
   $('n-wish').textContent = nw ? `(${nw})` : ''
   for (const b of document.querySelectorAll('.tabs [role="tab"]')) b.setAttribute('aria-selected', b.dataset.tab === tab)
   $('btn-share').hidden = nv + nw === 0
+
+  if (tab === 'trips') {
+    const list = trips.list()
+    $('visited-list').hidden = false
+    $('progress').hidden = true
+    $('empty').hidden = list.length > 0
+    $('empty').innerHTML = 'Aucun voyage préparé.<br />Ouvrez la fiche d’un pays et touchez « Préparer un voyage ».'
+    $('visited-list').replaceChildren(
+      ...list.map((t) => {
+        const li = document.createElement('li')
+        const quand = new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+        li.innerHTML = `<button class="row" type="button"><span class="flag">${flagOf(t.code)}</span><span class="name"><span class="trip-name"></span><small></small></span></button><button class="remove" type="button">Supprimer</button>`
+        li.querySelector('.trip-name').textContent = t.itineraire.titre
+        li.querySelector('small').textContent = `${t.demande.jours} jour${t.demande.jours > 1 ? 's' : ''} · préparé le ${quand}`
+        li.querySelector('.row').addEventListener('click', () => openTrip(t.id))
+        li.querySelector('.remove').addEventListener('click', () => {
+          const removed = trips.remove(t.id)
+          renderList()
+          toast('Voyage supprimé', () => {
+            trips.restore(removed)
+            renderList()
+          })
+        })
+        return li
+      }),
+    )
+    return
+  }
 
   if (tab === 'progress') {
     const p = progress(store.visited.codes())
@@ -613,8 +656,195 @@ function renderHome() {
 
 function openSettings() {
   renderHome()
+  const api = trips.api
+  $('api-code').value = api.code
+  $('api-url').value = api.url
+  $('api-status').textContent = ''
   showModal($('settings'))
 }
+
+$('api-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const url = $('api-url').value.trim() || API_PAR_DEFAUT
+  trips.setApi({ code: $('api-code').value.trim(), url })
+  $('api-status').textContent = 'Vérification… (jusqu’à une minute si le serveur dormait)'
+  try {
+    const sante = await reveiller(url)
+    $('api-status').textContent = sante.configure
+      ? `✓ Serveur prêt · ${sante.restant} voyage${sante.restant > 1 ? 's' : ''} possible${sante.restant > 1 ? 's' : ''} aujourd’hui`
+      : '⚠️ Le serveur répond, mais son code d’accès n’est pas réglé.'
+  } catch {
+    $('api-status').textContent = '✕ Serveur injoignable. Vérifiez l’adresse.'
+  }
+})
+
+// ---------- Préparer un voyage ----------
+
+const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+MOIS.forEach((m, i) => $('v-mois').append(new Option(m, String(i + 1))))
+$('v-envies').replaceChildren(
+  ...ENVIES.map(([value, text]) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'chip-toggle'
+    b.dataset.value = value
+    b.setAttribute('aria-pressed', 'false')
+    b.textContent = text
+    b.addEventListener('click', () => b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'))
+    return b
+  }),
+)
+for (const group of document.querySelectorAll('#voyage .segmented')) {
+  group.addEventListener('click', (e) => {
+    const b = e.target.closest('button')
+    if (!b) return
+    for (const other of group.querySelectorAll('button')) other.setAttribute('aria-pressed', other === b)
+  })
+}
+
+let jours = 5
+function setJours(n) {
+  jours = Math.max(1, Math.min(21, n))
+  $('v-jours').textContent = `${jours} jour${jours > 1 ? 's' : ''}`
+  $('v-moins').disabled = jours === 1
+  $('v-plus').disabled = jours === 21
+}
+setJours(5)
+$('v-moins').addEventListener('click', () => setJours(jours - 1))
+$('v-plus').addEventListener('click', () => setJours(jours + 1))
+
+let voyagePays = null
+let tripShown = null
+let pending = null
+
+function voyageView(view) {
+  for (const [id, name] of [
+    ['v-form', 'form'],
+    ['v-loading', 'loading'],
+    ['v-error', 'error'],
+    ['v-result', 'result'],
+    ['v-result-actions', 'result'],
+  ])
+    $(id).hidden = view !== name
+  $('v-share').hidden = view !== 'result'
+  $('v-body').scrollTop = 0
+}
+
+function openVoyage(code) {
+  voyagePays = code
+  tripShown = null
+  $('v-title').textContent = `${flagOf(code)} ${nameOf(code)}`
+  $('v-ville').value = ''
+  $('v-precisions').value = ''
+  voyageView('form')
+  showModal($('voyage'))
+  // Le serveur gratuit s'endort : on le réveille pendant que l'utilisateur remplit le formulaire.
+  reveiller(trips.api.url).catch(() => {})
+}
+
+function openTrip(id) {
+  const t = trips.get(id)
+  if (!t) return
+  voyagePays = t.code
+  tripShown = t
+  $('v-title').textContent = `${flagOf(t.code)} ${nameOf(t.code)}`
+  $('v-result').innerHTML = itineraireHtml(t.itineraire, nameOf(t.code))
+  voyageView('result')
+  showModal($('voyage'))
+}
+
+function lireFormulaire() {
+  const pressed = (id) => $(id).querySelector('[aria-pressed="true"]')?.dataset.value
+  return {
+    pays: nameOf(voyagePays),
+    ville: $('v-ville').value.trim(),
+    depart: store.home && store.home !== voyagePays ? nameOf(store.home) : '',
+    jours,
+    mois: $('v-mois').value ? Number($('v-mois').value) : null,
+    envies: [...$('v-envies').querySelectorAll('[aria-pressed="true"]')].map((b) => b.dataset.value),
+    voyageurs: pressed('v-qui') ?? '',
+    budget: pressed('v-budget') ?? 'moyen',
+    rythme: pressed('v-rythme') ?? 'equilibre',
+    precisions: $('v-precisions').value.trim(),
+  }
+}
+
+const ATTENTE = [
+  'Je repère les incontournables…',
+  'Je cherche des coins moins connus…',
+  'J’organise les journées…',
+  'Je choisis de bonnes tables…',
+  'Je vérifie les temps de trajet…',
+  'Presque prêt…',
+]
+
+let derniereDemande = null
+
+async function lancer(demande) {
+  if (!trips.api.code) {
+    toast('Entrez d’abord le code d’accès du serveur')
+    openSettings()
+    return
+  }
+  derniereDemande = demande
+  voyageView('loading')
+  let i = 0
+  $('v-loading-text').textContent = ATTENTE[0]
+  const timer = setInterval(() => {
+    i = Math.min(i + 1, ATTENTE.length - 1)
+    $('v-loading-text').textContent = ATTENTE[i]
+  }, 9000)
+  pending = new AbortController()
+  const code = voyagePays
+  try {
+    const itineraire = await demanderItineraire(trips.api, demande, pending.signal)
+    const t = trips.add(code, demande, itineraire)
+    tripShown = t
+    $('v-result').innerHTML = itineraireHtml(itineraire, nameOf(code))
+    voyageView('result')
+    if (openModal !== $('voyage')) toast(`Voyage prêt : ${label(code)}`)
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      voyageView('form')
+      return
+    }
+    $('v-error-text').textContent = e.message
+    voyageView('error')
+  } finally {
+    clearInterval(timer)
+    pending = null
+  }
+}
+
+$('f-plan').addEventListener('click', () => openVoyage(selected))
+$('v-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  lancer(lireFormulaire())
+})
+$('v-cancel').addEventListener('click', () => pending?.abort())
+$('v-retry').addEventListener('click', () => derniereDemande && lancer(derniereDemande))
+$('v-edit').addEventListener('click', () => voyageView('form'))
+$('v-new').addEventListener('click', () => voyageView('form'))
+$('v-close').addEventListener('click', hideModal)
+$('v-delete').addEventListener('click', () => {
+  if (!tripShown) return
+  const removed = trips.remove(tripShown.id)
+  hideModal()
+  toast('Voyage supprimé', () => trips.restore(removed))
+})
+$('v-share').addEventListener('click', async () => {
+  if (!tripShown) return
+  const text = itineraireTexte(tripShown.itineraire)
+  try {
+    if (navigator.share) await navigator.share({ title: tripShown.itineraire.titre, text })
+    else {
+      await navigator.clipboard.writeText(text)
+      toast('Itinéraire copié')
+    }
+  } catch {
+    // Partage annulé.
+  }
+})
 
 $('btn-settings').addEventListener('click', openSettings)
 $('home-search').addEventListener('input', renderHome)

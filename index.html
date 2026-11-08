@@ -89,6 +89,9 @@
           <button id="f-visited" class="action visited" type="button" aria-pressed="false"></button>
           <button id="f-wish" class="action wish" type="button" aria-pressed="false"></button>
         </div>
+        <div class="actions">
+          <button id="f-plan" class="action plan" type="button">🧳 Préparer un voyage</button>
+        </div>
         <div class="fiche-body">
           <section class="card" id="f-trip"></section>
           <section class="card">
@@ -113,11 +116,91 @@
         <div class="tabs" role="tablist">
           <button role="tab" data-tab="visited" aria-selected="true">Visités <span id="n-visited"></span></button>
           <button role="tab" data-tab="wish" aria-selected="false">Envies <span id="n-wish"></span></button>
+          <button role="tab" data-tab="trips" aria-selected="false">Voyages</button>
           <button role="tab" data-tab="progress" aria-selected="false">Continents</button>
         </div>
         <ul id="visited-list" class="visited-list"></ul>
         <div id="progress" class="progress" hidden></div>
         <p id="empty" class="empty"></p>
+      </section>
+
+      <section id="voyage" class="sheet modal tall" role="dialog" aria-modal="true" aria-labelledby="v-title" hidden>
+        <div class="grabber" aria-hidden="true"></div>
+        <header class="sheet-head">
+          <h2 id="v-title">Préparer un voyage</h2>
+          <button id="v-share" class="link" type="button" hidden>Partager</button>
+          <button id="v-close" class="link strong" type="button">Fermer</button>
+        </header>
+        <div id="v-body" class="voyage-body">
+          <form id="v-form" class="v-form" autocomplete="off">
+            <label class="v-label" for="v-ville">Ville ou région <small>(facultatif)</small></label>
+            <input id="v-ville" class="v-input" type="text" placeholder="Ex. Kyoto, la côte Ouest…" maxlength="80" />
+
+            <span class="v-label">Combien de jours ?</span>
+            <div class="stepper">
+              <button type="button" id="v-moins" aria-label="Un jour de moins">−</button>
+              <output id="v-jours" aria-live="polite">5</output>
+              <button type="button" id="v-plus" aria-label="Un jour de plus">+</button>
+            </div>
+
+            <label class="v-label" for="v-mois">Quand ?</label>
+            <select id="v-mois" class="v-input">
+              <option value="">Pas encore décidé</option>
+            </select>
+
+            <span class="v-label">Vos envies</span>
+            <div id="v-envies" class="chips"></div>
+
+            <span class="v-label">Avec qui ?</span>
+            <div id="v-qui" class="segmented" data-name="voyageurs">
+              <button type="button" data-value="seul">Seul</button>
+              <button type="button" data-value="en couple" aria-pressed="true">En couple</button>
+              <button type="button" data-value="entre amis">Amis</button>
+              <button type="button" data-value="en famille avec enfants">Famille</button>
+            </div>
+
+            <span class="v-label">Budget</span>
+            <div id="v-budget" class="segmented" data-name="budget">
+              <button type="button" data-value="eco">€ Petit</button>
+              <button type="button" data-value="moyen" aria-pressed="true">€€ Moyen</button>
+              <button type="button" data-value="confort">€€€ Confort</button>
+            </div>
+
+            <span class="v-label">Rythme</span>
+            <div id="v-rythme" class="segmented" data-name="rythme">
+              <button type="button" data-value="calme">Tranquille</button>
+              <button type="button" data-value="equilibre" aria-pressed="true">Équilibré</button>
+              <button type="button" data-value="intense">Intense</button>
+            </div>
+
+            <label class="v-label" for="v-precisions">Autre chose ? <small>(facultatif)</small></label>
+            <textarea id="v-precisions" class="v-input" rows="2" maxlength="300" placeholder="Ex. pas de voiture, on adore les marchés…"></textarea>
+
+            <button id="v-go" class="button big" type="submit">✨ Préparer mon voyage</button>
+            <p id="v-note" class="help center">Itinéraire, activités et restaurants proposés par Claude (IA). Environ une minute.</p>
+          </form>
+
+          <div id="v-loading" class="v-loading" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="v-loading-text">Je prépare votre voyage…</p>
+            <p class="help">Cela prend souvent 30 à 60 secondes.</p>
+            <button id="v-cancel" class="link" type="button">Annuler</button>
+          </div>
+
+          <div id="v-error" class="v-error" hidden>
+            <p id="v-error-text"></p>
+            <div class="buttons">
+              <button id="v-retry" class="button" type="button">Réessayer</button>
+              <button id="v-edit" class="button secondary" type="button">Modifier la demande</button>
+            </div>
+          </div>
+
+          <div id="v-result" hidden></div>
+          <div id="v-result-actions" class="buttons result-actions" hidden>
+            <button id="v-new" class="button secondary" type="button">Préparer une autre version</button>
+            <button id="v-delete" class="link danger" type="button">Supprimer ce voyage</button>
+          </div>
+        </div>
       </section>
 
       <section id="settings" class="sheet modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
@@ -142,6 +225,18 @@
             />
           </form>
           <ul id="home-results" class="pick-list"></ul>
+
+          <h3>Préparation de voyage</h3>
+          <p class="help">Les itinéraires sont préparés par Claude via votre serveur. Entrez le code d'accès choisi lors de son installation.</p>
+          <form id="api-form" class="field stacked" autocomplete="off">
+            <input id="api-code" type="password" placeholder="Code d'accès" aria-label="Code d'accès du serveur" autocomplete="off" />
+            <details class="advanced">
+              <summary>Adresse du serveur</summary>
+              <input id="api-url" type="url" inputmode="url" aria-label="Adresse du serveur" autocapitalize="off" spellcheck="false" />
+            </details>
+            <button id="api-test" class="button secondary" type="submit">Enregistrer et vérifier</button>
+            <p id="api-status" class="help" aria-live="polite"></p>
+          </form>
 
           <h3>Sauvegarde</h3>
           <p class="help">Vos pays restent sur ce téléphone. Gardez une copie au cas où vous changez d'appareil.</p>

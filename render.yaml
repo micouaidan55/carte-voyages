@@ -1,0 +1,21 @@
+# Serveur d'itinéraires (Claude) pour l'application Mes pays.
+# Render demande à la création les deux secrets marqués sync: false.
+services:
+  - type: web
+    name: carte-voyages-api
+    runtime: node
+    rootDir: server
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/sante
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CODE_ACCES
+        sync: false
+      - key: LIMITE_JOUR
+        value: "20"
+      - key: ORIGINES
+        value: https://micouaidan55.github.io

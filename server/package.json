@@ -1,0 +1,16 @@
+{
+  "name": "carte-voyages-api",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Prépare des itinéraires de voyage avec Claude pour l'application Mes pays.",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0"
+  }
+}

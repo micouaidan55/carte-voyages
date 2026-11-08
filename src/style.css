@@ -960,3 +960,358 @@ body.fiche-open .bottom .toast {
   min-height: 42px;
   width: 100%;
 }
+
+/* ---------- Préparer un voyage ---------- */
+
+.action.plan {
+  background: var(--bg);
+  border-color: transparent;
+}
+
+.sheet.tall {
+  max-height: 92vh;
+  height: 92vh;
+}
+
+.voyage-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 18px calc(24px + env(safe-area-inset-bottom));
+}
+
+.v-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.v-label {
+  margin: 16px 0 7px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.v-label small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.v-input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  outline: 0;
+  -webkit-user-select: text;
+  user-select: text;
+  resize: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.v-input:focus {
+  border-color: var(--visited);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 4px;
+}
+
+.stepper button {
+  width: 46px;
+  height: 42px;
+  border-radius: 11px;
+  font-size: 22px;
+  color: var(--visited);
+}
+
+.stepper button:disabled {
+  opacity: 0.3;
+}
+
+.stepper output {
+  min-width: 92px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-toggle {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--bg);
+  font-size: 15px;
+  box-shadow: inset 0 0 0 1.5px transparent;
+}
+
+.chip-toggle[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--visited);
+  color: var(--visited);
+  font-weight: 600;
+}
+
+.segmented {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--line);
+}
+
+.segmented button {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 9px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--panel-solid);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.button.big {
+  margin-top: 22px;
+  min-height: 56px;
+  font-size: 17px;
+}
+
+.help.center {
+  text-align: center;
+  margin-top: 10px;
+}
+
+.v-loading,
+.v-error {
+  text-align: center;
+  padding: 60px 10px;
+}
+
+.v-loading p:first-of-type {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 22px 0 6px;
+}
+
+.v-error p {
+  margin: 0 0 20px;
+  font-size: 16px;
+}
+
+.spinner {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 4px solid var(--line);
+  border-top-color: var(--visited);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.trip-title {
+  margin: 8px 0 6px;
+  font-size: 22px;
+}
+
+.trip-summary {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.steps span {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--bg);
+  font-weight: 600;
+}
+
+.steps i {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.budget {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.day {
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.day header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day-num {
+  color: var(--visited);
+  font-weight: 700;
+}
+
+.day-place {
+  color: var(--muted);
+  text-align: right;
+}
+
+.day h4 {
+  margin: 4px 0 8px;
+  font-size: 18px;
+}
+
+.move {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.acts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acts li {
+  border-left: 3px solid var(--line);
+  padding-left: 10px;
+}
+
+.acts li.resto {
+  border-left-color: var(--visited);
+}
+
+.acts .moment {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 1px;
+}
+
+.acts a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.acts a strong {
+  text-decoration: underline;
+  text-decoration-color: var(--visited);
+  text-underline-offset: 3px;
+}
+
+.acts .duree {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.acts p {
+  margin: 3px 0 0;
+  font-size: 15px;
+}
+
+.tips {
+  margin-top: 16px;
+}
+
+.tips h4 {
+  margin: 0 0 6px;
+}
+
+.tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.tips li {
+  margin-bottom: 6px;
+}
+
+.ai-note {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.result-actions {
+  margin-top: 8px;
+}
+
+.link.danger {
+  color: #c0392b;
+  align-self: center;
+}
+
+.visited-list .name small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trip-name {
+  display: block;
+}
+
+.field.stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.advanced summary {
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.tabs button {
+  font-size: 13.5px;
+}
