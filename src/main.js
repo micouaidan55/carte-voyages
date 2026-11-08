@@ -21,7 +21,9 @@ import {
   trip,
   zoneRange,
 } from './info.js'
-import { createStore } from './store.js'
+import { createStore, villeKey } from './store.js'
+import { loadVilles, searchVilles } from './villes.js'
+import { genererValise, progression } from './valise.js'
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import {
@@ -31,6 +33,9 @@ import {
   demanderItineraire,
   itineraireHtml,
   itineraireTexte,
+  fusionnerTrajets,
+  lireReservation,
+  trajetsHtml,
   reveiller,
 } from './voyage.js'
 
@@ -73,8 +78,24 @@ for (const { f, code } of shapes) {
 
 let width = 0
 let height = 0
+const cityLayer = root.append('g').attr('class', 'cities')
+let zoomK = 1
+
+function paintCities() {
+  cityLayer
+    .selectAll('circle')
+    .data(store.villes.list(), villeKey)
+    .join('circle')
+    .attr('cx', (v) => projection([v.lon, v.lat])[0])
+    .attr('cy', (v) => projection([v.lon, v.lat])[1])
+    .attr('r', 3.2 / Math.sqrt(zoomK))
+    .attr('stroke-width', 1.2 / Math.sqrt(zoomK))
+}
+
 const zoomer = zoom().on('zoom', (event) => {
   root.attr('transform', event.transform)
+  zoomK = event.transform.k
+  cityLayer.selectAll('circle').attr('r', 3.2 / Math.sqrt(zoomK)).attr('stroke-width', 1.2 / Math.sqrt(zoomK))
   svg.classed('zoomed', event.transform.k > 4)
 })
 svg.call(zoomer).on('dblclick.zoom', null)
@@ -102,6 +123,7 @@ function layout() {
   sphere.attr('d', path)
   graticule.attr('d', path)
   countries.attr('d', (d) => path(d.f))
+  paintCities()
   zoomer.scaleExtent([Math.min(1, fitWidth / mapWidth), 60]).translateExtent([
     [Math.min(0, x0) - 8, top - height * 0.3],
     [Math.max(width, x0 + mapWidth) + 8, bottom + height * 0.3],
@@ -109,6 +131,7 @@ function layout() {
 }
 
 function paint() {
+  paintCities()
   countries
     .classed('visited', (d) => d.code && store.visited.has(d.code))
     .classed('wish', (d) => d.code && store.wish.has(d.code))
@@ -155,6 +178,16 @@ function focus(code) {
     .duration(600)
     .call(zoomer.transform, zoomIdentity.translate(width / 2 - k * cx, visibleTop + visibleHeight / 2 - k * cy).scale(k))
   return true
+}
+
+function focusPoint(v, k = 6) {
+  const [x, y] = projection([v.lon, v.lat])
+  const visibleTop = 80
+  const visibleHeight = (window.visualViewport?.height ?? height) - visibleTop - 120
+  svg
+    .transition()
+    .duration(600)
+    .call(zoomer.transform, zoomIdentity.translate(width / 2 - k * x, visibleTop + visibleHeight / 2 - k * y).scale(k))
 }
 
 countries.on('click', (event, d) => {
@@ -258,6 +291,7 @@ function renderFiche() {
   bw.innerHTML = wish ? '<span aria-hidden="true">★</span> Dans mes envies' : '<span aria-hidden="true">☆</span> J’ai envie d’y aller'
 
   renderMemory()
+  renderCities()
   renderTrip()
 
   const facts = []
@@ -327,6 +361,71 @@ $('f-heart').addEventListener('click', () => {
     if (selected) store.setSouvenir(selected, { texte: $('f-note').value })
   })
 }
+
+// ---------- Villes dans la fiche ----------
+
+function renderCities() {
+  const code = selected
+  const mine = store.villes.of(code)
+  $('f-city-list').replaceChildren(
+    ...mine.map((v) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'pill done city-pill'
+      b.innerHTML = `<span></span><span class="x" aria-hidden="true">✕</span>`
+      b.querySelector('span').textContent = v.nom
+      b.setAttribute('aria-label', `Retirer ${v.nom}`)
+      b.addEventListener('click', () => {
+        const old = store.villes.remove(v)
+        toast(`Ville retirée : ${v.nom}`, () => old && store.villes.add(old))
+      })
+      return b
+    }),
+  )
+  $('f-city-empty').hidden = mine.length > 0
+  renderCityResults()
+}
+
+function renderCityResults() {
+  const q = $('f-city-input').value
+  const code = selected
+  if (q.trim().length < 2) {
+    $('f-city-results').replaceChildren()
+    return
+  }
+  loadVilles().then((villes) => {
+    if ($('f-city-input').value !== q || selected !== code) return
+    const found = searchVilles(villes, q, { cc: code, limit: 5 })
+    $('f-city-results').replaceChildren(
+      ...(found.length
+        ? found.map((v) => {
+            const li = document.createElement('li')
+            const b = document.createElement('button')
+            b.type = 'button'
+            b.textContent = `${store.villes.has(v) ? '✓ ' : '＋ '}${v.nom}`
+            b.addEventListener('pointerdown', (e) => e.preventDefault()) // garde le clavier ouvert
+            b.addEventListener('click', () => {
+              addVille({ nom: v.nom, cc: v.cc, lat: v.lat, lon: v.lon })
+              $('f-city-input').value = ''
+              renderCityResults()
+            })
+            li.append(b)
+            return li
+          })
+        : [Object.assign(document.createElement('li'), { className: 'none', textContent: 'Aucune ville trouvée' })]),
+    )
+  })
+}
+
+$('f-city-input').addEventListener('input', renderCityResults)
+$('f-city-input').addEventListener('focus', () => {
+  loadVilles()
+  setTimeout(() => $('f-city-input').scrollIntoView({ block: 'center', behavior: 'smooth' }), 350)
+})
+$('f-city-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  $('f-city-results').querySelector('button')?.click()
+})
 
 // ---------- Taux de change ----------
 
@@ -430,6 +529,7 @@ function updateStats() {
   const share = store.visited.codes().reduce((sum, c) => sum + (areaByCode.get(c) ?? 0), 0) / totalArea
   const bits = []
   if (n) bits.push(`${formatPercent(share)} des terres`)
+  if (store.villes.size) bits.push(`${store.villes.size} ville${store.villes.size > 1 ? 's' : ''}`)
   if (store.wish.size) bits.push(`${store.wish.size} envie${store.wish.size > 1 ? 's' : ''}`)
   $('land').textContent = bits.join(' · ')
   $('hint').hidden = n > 0 || store.wish.size > 0
@@ -471,6 +571,47 @@ function renderResults() {
     results.append(li)
   }
   results.hidden = !input.value
+  const q = input.value
+  if (q.trim().length >= 3) {
+    loadVilles().then((villes) => {
+      if (input.value !== q) return
+      const found = searchVilles(villes, q, { limit: 4 })
+      if (!found.length) return
+      results.querySelector('.none')?.remove()
+      if (!current.length) current = []
+      results.append(
+        ...found.map((v) => {
+          const li = document.createElement('li')
+          li.role = 'option'
+          li.dataset.ville = JSON.stringify({ nom: v.nom, cc: v.cc, lat: v.lat, lon: v.lon })
+          const done = store.villes.has(v)
+          li.className = 'city' + (done ? ' done' : '')
+          li.innerHTML = `<span class="flag">${flagOf(v.cc)}</span><span class="name"><span></span><small></small></span><span class="state">${
+            done ? '✓ Visitée' : 'Ajouter'
+          }</span>`
+          li.querySelector('.name span').textContent = v.nom
+          li.querySelector('.name small').textContent = `Ville · ${nameOf(v.cc)}`
+          return li
+        }),
+      )
+      results.hidden = false
+    })
+  }
+}
+
+function addVille(v) {
+  if (store.villes.has(v)) {
+    toast(`${v.nom} est déjà dans vos villes`)
+    return
+  }
+  const paysAjoute = store.villes.add(v)
+  toast(
+    paysAjoute ? `Ajouté : ${v.nom} et ${label(v.cc)}` : `Ville ajoutée : ${v.nom}`,
+    () => {
+      store.villes.remove(v)
+      if (paysAjoute) store.visited.remove(v.cc)
+    },
+  )
 }
 
 function closeSearch() {
@@ -494,6 +635,15 @@ results.addEventListener('pointerdown', (e) => {
   if (!e.target.closest('.info')) e.preventDefault() // garde le clavier ouvert
 })
 results.addEventListener('click', (e) => {
+  const city = e.target.closest('li[data-ville]')
+  if (city) {
+    const v = JSON.parse(city.dataset.ville)
+    addVille(v)
+    focusPoint(v)
+    input.value = ''
+    renderResults()
+    return
+  }
   const li = e.target.closest('li[data-code]')
   if (!li) return
   if (e.target.closest('.info')) openFiche(li.dataset.code)
@@ -707,6 +857,7 @@ async function imageCarte() {
   if (store.wish.size) lignes.push(`Et ${store.wish.size} envie${store.wish.size > 1 ? 's' : ''} en bleu`)
   const svg = afficheSvg({
     shapes,
+    villes: store.villes.list(),
     visited: new Set(store.visited.codes()),
     wish: new Set(store.wish.codes()),
     couleurs: couleurs(),
@@ -849,13 +1000,153 @@ function voyageView(view) {
     ['v-form', 'form'],
     ['v-loading', 'loading'],
     ['v-error', 'error'],
-    ['v-result', 'result'],
+    ['v-tabs', 'result'],
     ['v-result-actions', 'result'],
   ])
     $(id).hidden = view !== name
   $('v-share').hidden = view !== 'result'
+  if (view === 'result') showPanel('plan')
+  else for (const id of ['v-result', 'v-valise', 'v-vols']) $(id).hidden = true
   $('v-body').scrollTop = 0
 }
+
+// Onglets d'un voyage : itinéraire, valise, trajets.
+function showPanel(name) {
+  $('v-result').hidden = name !== 'plan'
+  $('v-valise').hidden = name !== 'valise'
+  $('v-vols').hidden = name !== 'vols'
+  $('v-result-actions').hidden = name !== 'plan'
+  for (const b of $('v-tabs').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.panel === name)
+  if (name === 'valise') renderValise()
+  if (name === 'vols') renderVols()
+  updateTabCounts()
+}
+
+$('v-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-panel]')
+  if (b) showPanel(b.dataset.panel)
+})
+
+function valiseOf(t) {
+  if (Array.isArray(t.valise)) return t.valise
+  const valise = genererValise({
+    code: t.code,
+    home: store.home,
+    jours: t.demande?.jours ?? 5,
+    mois: t.demande?.mois ?? null,
+    envies: t.demande?.envies ?? [],
+    latitude: PAYS[t.code]?.capitale?.lat ?? PAYS[t.code]?.centre?.[0] ?? 45,
+  })
+  tripShown = trips.update(t.id, { valise })
+  return valise
+}
+
+function updateTabCounts() {
+  if (!tripShown) return
+  const p = progression(Array.isArray(tripShown.valise) ? tripShown.valise : [])
+  $('v-valise-count').textContent = p.total ? `${p.ok}/${p.total}` : ''
+  const n = tripShown.vols?.length ?? 0
+  $('v-vols-count').textContent = n ? `(${n})` : ''
+}
+
+function saveValise(valise) {
+  tripShown = trips.update(tripShown.id, { valise })
+  renderValise()
+}
+
+function renderValise() {
+  if (!tripShown) return
+  const valise = valiseOf(tripShown)
+  const p = progression(valise)
+  $('v-valise-bar').style.width = `${p.pct}%`
+  const cats = [...new Set(valise.map((i) => i.cat))]
+  $('v-valise-list').replaceChildren(
+    ...cats.map((cat) => {
+      const box = document.createElement('section')
+      box.className = 'valise-cat'
+      const h = document.createElement('h4')
+      h.textContent = cat
+      box.append(h)
+      valise.forEach((item, i) => {
+        if (item.cat !== cat) return
+        const row = document.createElement('div')
+        row.className = 'valise-item' + (item.ok ? ' ok' : '')
+        row.innerHTML = `<label><input type="checkbox" ${item.ok ? 'checked' : ''} /><span></span></label><button class="x" type="button" aria-label="Retirer">✕</button>`
+        row.querySelector('span').textContent = item.t
+        row.querySelector('input').addEventListener('change', (e) => {
+          const next = valise.map((it, j) => (j === i ? { ...it, ok: e.target.checked } : it))
+          saveValise(next)
+        })
+        row.querySelector('.x').addEventListener('click', () => saveValise(valise.filter((_, j) => j !== i)))
+        box.append(row)
+      })
+      return box
+    }),
+  )
+  updateTabCounts()
+}
+
+$('v-valise-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  const t = $('v-valise-input').value.trim()
+  if (!t || !tripShown) return
+  saveValise([...valiseOf(tripShown), { cat: 'Mes ajouts', t: t.slice(0, 80), ok: false }])
+  $('v-valise-input').value = ''
+})
+
+function renderVols() {
+  if (!tripShown) return
+  const vols = tripShown.vols ?? []
+  $('v-vols-list').innerHTML = vols.length
+    ? trajetsHtml(vols)
+    : '<p class="help center">Aucun trajet pour l’instant. Collez ci-dessous l’e-mail de confirmation de votre vol ou de votre train.</p>'
+  for (const seg of $('v-vols-list').querySelectorAll('.segment')) {
+    seg.querySelector('.seg-remove').addEventListener('click', () => {
+      const i = Number(seg.dataset.i)
+      const old = tripShown.vols
+      tripShown = trips.update(tripShown.id, { vols: old.filter((_, j) => j !== i) })
+      renderVols()
+      toast('Trajet retiré', () => {
+        tripShown = trips.update(tripShown.id, { vols: old })
+        renderVols()
+      })
+    })
+  }
+  updateTabCounts()
+}
+
+$('v-vols-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  if (!tripShown) return
+  const texte = $('v-vols-texte').value.trim()
+  if (!texte) return
+  if (!trips.api.code) {
+    toast('Entrez d’abord le code d’accès du serveur')
+    openSettings()
+    return
+  }
+  const id = tripShown.id
+  $('v-vols-go').disabled = true
+  $('v-vols-status').textContent = 'Claude lit l’e-mail… (environ 10 secondes)'
+  try {
+    const data = await lireReservation(trips.api, texte)
+    const t = trips.get(id)
+    const { tous, ajoutes } = fusionnerTrajets(t.vols ?? [], data.trajets)
+    const updated = trips.update(id, { vols: tous })
+    if (tripShown?.id === id) tripShown = updated
+    $('v-vols-texte').value = ''
+    $('v-vols-status').textContent = ajoutes
+      ? `✓ ${ajoutes} trajet${ajoutes > 1 ? 's' : ''} ajouté${ajoutes > 1 ? 's' : ''}`
+      : data.trajets.length
+        ? 'Ces trajets étaient déjà enregistrés.'
+        : `Aucun trajet trouvé. ${data.remarque || ''}`
+    renderVols()
+  } catch (err) {
+    $('v-vols-status').textContent = `✕ ${err.message}`
+  } finally {
+    $('v-vols-go').disabled = false
+  }
+})
 
 function openVoyage(code) {
   voyagePays = code

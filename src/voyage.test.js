@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { API_PAR_DEFAUT, createTrips, itineraireHtml, itineraireTexte, lienCarte } from './voyage.js'
+import { API_PAR_DEFAUT, createTrips, fusionnerTrajets, itineraireHtml, itineraireTexte, lienCarte, trajetsHtml } from './voyage.js'
 
 function memoryStorage() {
   const data = {}
@@ -62,5 +62,29 @@ describe('affichage', () => {
 
   it('produit un texte à partager', () => {
     expect(itineraireTexte(exemple)).toContain('Jour 1 · Kyoto — Higashiyama')
+  })
+})
+
+describe('trajets', () => {
+  const af = { type: 'avion', numero: 'AF276', compagnie: 'Air France', depart_lieu: 'Paris', depart_code: 'CDG', depart_date: '2027-05-12', depart_heure: '10:25', arrivee_lieu: 'Tokyo', arrivee_code: 'HND', arrivee_date: '2027-05-13', arrivee_heure: '06:05', reference: 'ABC123' }
+  const retour = { ...af, numero: 'AF275', depart_lieu: 'Tokyo', depart_date: '2027-05-20' }
+
+  it('ajoute sans doublon et trie par date', () => {
+    const a = fusionnerTrajets([retour], [af, af])
+    expect(a.ajoutes).toBe(1)
+    expect(a.tous.map((t) => t.numero)).toEqual(['AF276', 'AF275'])
+  })
+
+  it('affiche l’arrivée le lendemain et échappe le texte', () => {
+    const html = trajetsHtml([{ ...af, compagnie: '<b>x</b>' }])
+    expect(html).toContain('<sup>+1</sup>')
+    expect(html).not.toContain('<b>x</b>')
+  })
+
+  it('met à jour un voyage enregistré', () => {
+    const t = createTrips(memoryStorage())
+    const v = t.add('JP', { jours: 2 }, exemple)
+    t.update(v.id, { vols: [af] })
+    expect(t.get(v.id).vols).toHaveLength(1)
   })
 })

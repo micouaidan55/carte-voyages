@@ -9,7 +9,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const POLICE = '-apple-system, BlinkMacSystemFont, Helvetica Neue, Helvetica, Arial, sans-serif'
 
 // Construit le SVG de l'affiche. couleurs : { fond, ocean, terre, bord, visite, envie, texte, doux }
-export function afficheSvg({ shapes, visited, wish, couleurs: c, titre, sousTitre, lignes }) {
+export function afficheSvg({ shapes, villes = [], visited, wish, couleurs: c, titre, sousTitre, lignes }) {
   const projection = geoNaturalEarth1().fitExtent(
     [
       [50, 360],
@@ -25,6 +25,12 @@ export function afficheSvg({ shapes, visited, wish, couleurs: c, titre, sousTitr
       return d ? `<path d="${d}" fill="${fill}"/>` : ''
     })
     .join('')
+  const points = villes
+    .map((v) => {
+      const p = projection([v.lon, v.lat])
+      return p ? `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4.5" fill="${c.fond}" stroke="${c.texte}" stroke-width="2"/>` : ''
+    })
+    .join('')
   const bas = lignes
     .map(
       (l, i) =>
@@ -37,6 +43,7 @@ export function afficheSvg({ shapes, visited, wish, couleurs: c, titre, sousTitr
   <text x="${W / 2}" y="270" text-anchor="middle" font-size="46" font-weight="600" fill="${c.texte}">${esc(sousTitre)}</text>
   <path d="${path({ type: 'Sphere' })}" fill="${c.ocean}"/>
   <g stroke="${c.bord}" stroke-width="0.7" stroke-linejoin="round">${pays}</g>
+  <g>${points}</g>
   ${bas}
   <text x="${W / 2}" y="${H - 60}" text-anchor="middle" font-size="28" fill="${c.doux}">Mes pays · ma carte du monde</text>
 </svg>`

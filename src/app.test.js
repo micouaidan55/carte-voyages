@@ -91,6 +91,30 @@ describe('pays visités', () => {
     expect(createStore(storage).exportData().souvenirs).toEqual({})
   })
 
+  it('ajoute une ville et coche son pays', () => {
+    const storage = memoryStorage()
+    const s = createStore(storage)
+    const kyoto = { nom: 'Kyoto', cc: 'JP', lat: 35.02, lon: 135.75 }
+    expect(s.villes.add(kyoto)).toBe(true) // le Japon vient d'être ajouté
+    expect(s.has('JP')).toBe(true)
+    expect(s.villes.add(kyoto)).toBe(false)
+    expect(s.villes.add({ nom: 'Osaka', cc: 'JP', lat: 34.69, lon: 135.5 })).toBe(false) // déjà visité
+    const t = createStore(storage)
+    expect(t.villes.of('JP').map((v) => v.nom)).toEqual(['Kyoto', 'Osaka'])
+    t.villes.remove(kyoto)
+    expect(createStore(storage).villes.size).toBe(1)
+    expect(s.villes.add({ nom: 'X', cc: 'jp', lat: 1, lon: 2 })).toBe(false) // code invalide
+  })
+
+  it('restaure les villes et leurs pays', () => {
+    const a = createStore(memoryStorage())
+    a.villes.add({ nom: 'Lima', cc: 'PE', lat: -12.04, lon: -77.03 })
+    const b = createStore(memoryStorage())
+    expect(b.importData(a.exportData())).toBe(1)
+    expect(b.has('PE')).toBe(true)
+    expect(b.villes.of('PE')[0].nom).toBe('Lima')
+  })
+
   it('résiste à des données abîmées', () => {
     const storage = memoryStorage()
     storage.setItem('carte-voyages:v1', '{pas du json')

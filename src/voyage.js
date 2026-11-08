@@ -62,6 +62,11 @@ export function createTrips(storage = safeStorage()) {
       write(storage, KEY_TRIPS, trips)
       return trip
     },
+    update(id, patch) {
+      trips = trips.map((t) => (t.id === id ? { ...t, ...patch } : t))
+      write(storage, KEY_TRIPS, trips)
+      return trips.find((t) => t.id === id) ?? null
+    },
     restore(trip) {
       if (trips.some((t) => t.id === trip.id)) return
       trips = [...trips, trip]
@@ -160,6 +165,70 @@ export function itineraireHtml(it, pays) {
     }
     <p class="ai-note">Préparé par Claude (IA). Vérifiez horaires et adresses avant d’y aller.</p>
   </div>`
+}
+
+export async function lireReservation({ url, code }, texte) {
+  let r
+  try {
+    r = await fetch(`${base(url)}/api/vols`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Code-Acces': code },
+      body: JSON.stringify({ texte }),
+    })
+  } catch {
+    throw new Error('Pas de connexion au serveur. Vérifiez votre réseau.')
+  }
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.erreur || `Erreur du serveur (${r.status})`)
+  return data
+}
+
+// Ajoute des trajets sans doublon (même numéro, même date de départ).
+export function fusionnerTrajets(anciens = [], nouveaux = []) {
+  const cle = (t) => `${t.numero}|${t.depart_date}|${t.depart_lieu}`
+  const vus = new Set(anciens.map(cle))
+  const ajout = nouveaux.filter((t) => {
+    if (vus.has(cle(t))) return false
+    vus.add(cle(t))
+    return true
+  })
+  const tous = [...anciens, ...ajout].sort((a, b) =>
+    `${a.depart_date || '9'}${a.depart_heure}`.localeCompare(`${b.depart_date || '9'}${b.depart_heure}`),
+  )
+  return { tous, ajoutes: ajout.length }
+}
+
+const ICONES = { avion: '✈️', train: '🚆', bus: '🚌', bateau: '⛴️' }
+
+function dateCourte(iso) {
+  if (!iso) return ''
+  const d = new Date(`${iso}T12:00:00`)
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+export function trajetsHtml(trajets) {
+  return trajets
+    .map((t, i) => {
+      const lieu = (nom, code) => `${esc(nom)}${code ? ` <span class="iata">${esc(code)}</span>` : ''}`
+      const jourSuivant = t.arrivee_date && t.depart_date && t.arrivee_date !== t.depart_date
+      const suivi = t.numero
+        ? `<a href="https://www.google.com/search?q=${encodeURIComponent(t.numero + ' ' + (t.depart_date || ''))}" target="_blank" rel="noopener">Suivre ↗</a>`
+        : ''
+      return `<article class="segment" data-i="${i}">
+        <header>
+          <span>${ICONES[t.type] ?? '✈️'} <strong>${esc(t.numero || t.type)}</strong>${t.compagnie ? ' · ' + esc(t.compagnie) : ''}</span>
+          <button class="seg-remove" type="button" aria-label="Retirer ce trajet">✕</button>
+        </header>
+        <p class="seg-date">${esc(dateCourte(t.depart_date))}</p>
+        <div class="seg-route">
+          <div><span class="seg-time">${esc(t.depart_heure || '--:--')}</span>${lieu(t.depart_lieu, t.depart_code)}</div>
+          <span class="seg-arrow">→</span>
+          <div><span class="seg-time">${esc(t.arrivee_heure || '--:--')}${jourSuivant ? '<sup>+1</sup>' : ''}</span>${lieu(t.arrivee_lieu, t.arrivee_code)}</div>
+        </div>
+        <footer><span>${t.reference ? `Réservation <strong>${esc(t.reference)}</strong>` : ''}</span>${suivi}</footer>
+      </article>`
+    })
+    .join('')
 }
 
 export function itineraireTexte(it) {

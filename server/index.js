@@ -9,6 +9,7 @@ import http from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import { FORMAT, SYSTEM, consigne, validerDemande, verifierItineraire } from './itineraire.js'
+import { FORMAT_VOLS, SYSTEM_VOLS, consigneVols, nettoyerTrajets, validerTexte } from './vols.js'
 
 const PORT = Number(process.env.PORT) || 8787
 const CODE = process.env.CODE_ACCES ?? ''
@@ -62,7 +63,7 @@ async function lireCorps(req) {
   const morceaux = []
   for await (const morceau of req) {
     taille += morceau.length
-    if (taille > 10_000) throw new Error('Demande trop longue')
+    if (taille > 200_000) throw new Error('Demande trop longue')
     morceaux.push(morceau)
   }
   return JSON.parse(Buffer.concat(morceaux).toString('utf8') || '{}')
@@ -87,6 +88,31 @@ async function demanderAClaude(demande) {
     `itinéraire ${demande.pays} ${demande.jours} j : ${message.usage.input_tokens} entrée, ${message.usage.output_tokens} sortie`,
   )
   return verifierItineraire(JSON.parse(texte ?? ''), demande.jours)
+}
+
+async function lireReservation(texte) {
+  if (SIMULATION) {
+    return nettoyerTrajets({
+      trajets: [
+        { type: 'avion', compagnie: 'Air France', numero: 'AF 276', depart_lieu: 'Paris', depart_code: 'CDG', depart_date: '2027-05-12', depart_heure: '10:25', arrivee_lieu: 'Tokyo', arrivee_code: 'HND', arrivee_date: '2027-05-13', arrivee_heure: '06:05', reference: 'ABC123' },
+      ],
+      remarque: 'simulation',
+    })
+  }
+  const stream = client.beta.messages.stream({
+    model: 'claude-opus-5-5',
+    max_tokens: 16000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMAT_VOLS } },
+    system: SYSTEM_VOLS,
+    messages: [{ role: 'user', content: consigneVols(texte) }],
+  })
+  const message = await stream.finalMessage()
+  if (message.stop_reason === 'refusal') throw new Error('Claude n’a pas pu lire cet e-mail')
+  const brut = message.content.find((b) => b.type === 'text')?.text
+  console.log(`réservation lue : ${message.usage.input_tokens} entrée, ${message.usage.output_tokens} sortie`)
+  return nettoyerTrajets(JSON.parse(brut ?? '{}'))
 }
 
 function simulation(d) {
@@ -155,6 +181,25 @@ const serveur = http.createServer(async (req, res) => {
             : e instanceof Anthropic.APIError
               ? 'Claude ne répond pas, réessayez'
               : e.message || 'Erreur inconnue'
+      return repondre(res, 502, { erreur: message }, origin)
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/vols') {
+    if (!codeValide(req.headers['x-code-acces'])) return repondre(res, 401, { erreur: 'Code d’accès incorrect' }, origin)
+    if (quota() <= 0) return repondre(res, 429, { erreur: `Limite de ${LIMITE} demandes par jour atteinte` }, origin)
+    let texte
+    try {
+      texte = validerTexte(await lireCorps(req))
+    } catch (e) {
+      return repondre(res, 400, { erreur: e instanceof SyntaxError ? 'Demande illisible' : e.message }, origin)
+    }
+    compteur++
+    try {
+      return repondre(res, 200, { ...(await lireReservation(texte)), restant: quota() }, origin)
+    } catch (e) {
+      console.error('échec lecture réservation', e?.status ?? '', e?.message)
+      const message = e instanceof Anthropic.APIError ? 'Claude ne répond pas, réessayez' : 'Impossible de lire cet e-mail'
       return repondre(res, 502, { erreur: message }, origin)
     }
   }

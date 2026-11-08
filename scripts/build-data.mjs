@@ -116,4 +116,30 @@ out.XK ??= {
 }
 
 writeFileSync('src/data/pays.json', JSON.stringify(out))
+
+// Villes de plus de 20 000 habitants (et toutes les capitales), chargées à la demande.
+const VILLE_FR = {
+  ...NOM_FR,
+  Venice: 'Venise', Naples: 'Naples', Milan: 'Milan', Turin: 'Turin', Genoa: 'Gênes', Florence: 'Florence',
+  Seville: 'Séville', Cordoba: 'Cordoue', Saragossa: 'Saragosse', Marrakesh: 'Marrakech', Fes: 'Fès',
+  Munich: 'Munich', Cologne: 'Cologne', Hamburg: 'Hambourg', Nuremberg: 'Nuremberg', Aachen: 'Aix-la-Chapelle',
+  Antwerp: 'Anvers', Ghent: 'Gand', Bruges: 'Bruges', 'The Hague': 'La Haye', Geneva: 'Genève', Basel: 'Bâle',
+  Zurich: 'Zurich', 'Saint Petersburg': 'Saint-Pétersbourg', Krakow: 'Cracovie', Gdansk: 'Gdańsk',
+  Thessaloniki: 'Thessalonique', Istanbul: 'Istanbul', Edinburgh: 'Édimbourg', 'New York City': 'New York',
+  'New Orleans': 'La Nouvelle-Orléans', Philadelphia: 'Philadelphie', Montreal: 'Montréal', Quebec: 'Québec',
+  'Cape Town': 'Le Cap', Alexandria: 'Alexandrie', Mecca: 'La Mecque', Shanghai: 'Shanghai', Canton: 'Canton',
+  Guangzhou: 'Canton', 'Ho Chi Minh City': 'Hô Chi Minh-Ville', Bombay: 'Bombay', Mumbai: 'Bombay',
+  Calcutta: 'Calcutta', Kolkata: 'Calcutta', Tangier: 'Tanger', Bucharest: 'Bucarest',
+}
+const villes = cities
+  .filter((c) => c.population >= 20000 || c.featureCode === 'PPLC')
+  .sort((a, b) => b.population - a.population)
+  .map((c) => {
+    const nom = VILLE_FR[c.name] ?? c.name
+    const row = [nom, c.country, +c.loc.coordinates[1].toFixed(3), +c.loc.coordinates[0].toFixed(3), Math.round(c.population / 1000)]
+    if (nom !== c.name) row.push(c.name)
+    return row
+  })
+writeFileSync('src/data/villes.json', JSON.stringify(villes))
+console.log(villes.length, 'villes')
 console.log(Object.keys(out).length, 'pays,', [...onu].filter((c) => out[c]).length, 'États reconnus')

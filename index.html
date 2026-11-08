@@ -104,6 +104,15 @@
             </div>
             <textarea id="f-note" class="note" rows="2" maxlength="1000" placeholder="Un moment, un plat, une rencontre…"></textarea>
           </section>
+          <section class="card" id="f-cities">
+            <div class="card-head"><h3>Mes villes</h3></div>
+            <p id="f-city-empty" class="help">Ajoutez les villes où vous êtes allé : elles apparaissent en points sur la carte.</p>
+            <div id="f-city-list" class="neighbours"></div>
+            <form id="f-city-form" class="city-add" autocomplete="off">
+              <input id="f-city-input" type="search" placeholder="＋ Ajouter une ville…" aria-label="Ajouter une ville" enterkeyhint="done" autocorrect="off" autocapitalize="off" spellcheck="false" />
+            </form>
+            <ul id="f-city-results" class="pick-list city-results"></ul>
+          </section>
           <section class="card" id="f-trip"></section>
           <section class="card">
             <dl id="f-facts" class="facts"></dl>
@@ -206,7 +215,29 @@
             </div>
           </div>
 
+          <div id="v-tabs" class="segmented v-tabs" hidden>
+            <button type="button" data-panel="plan" aria-pressed="true">Itinéraire</button>
+            <button type="button" data-panel="valise">Valise <span id="v-valise-count"></span></button>
+            <button type="button" data-panel="vols">Trajets <span id="v-vols-count"></span></button>
+          </div>
           <div id="v-result" hidden></div>
+          <div id="v-valise" class="valise" hidden>
+            <div class="valise-progress"><span id="v-valise-bar"></span></div>
+            <div id="v-valise-list"></div>
+            <form id="v-valise-form" class="field add-item" autocomplete="off">
+              <input id="v-valise-input" type="text" placeholder="＋ Ajouter un objet…" aria-label="Ajouter un objet à la valise" maxlength="80" />
+            </form>
+          </div>
+          <div id="v-vols" class="vols" hidden>
+            <div id="v-vols-list"></div>
+            <form id="v-vols-form" class="v-form" autocomplete="off">
+              <label class="v-label" for="v-vols-texte">Ajouter un vol ou un train</label>
+              <textarea id="v-vols-texte" class="v-input" rows="4" placeholder="Collez ici l’e-mail de confirmation (Air France, SNCF, easyJet…)"></textarea>
+              <button id="v-vols-go" class="button" type="submit">Lire l’e-mail avec Claude</button>
+              <p class="help center">Le texte passe par votre serveur puis Claude pour être lu ; il n’est pas conservé. Seuls les trajets sont gardés sur ce téléphone.</p>
+              <p id="v-vols-status" class="help center" aria-live="polite"></p>
+            </form>
+          </div>
           <div id="v-result-actions" class="buttons result-actions" hidden>
             <button id="v-new" class="button secondary" type="button">Préparer une autre version</button>
             <button id="v-delete" class="link danger" type="button">Supprimer ce voyage</button>

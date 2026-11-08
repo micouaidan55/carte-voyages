@@ -2,6 +2,26 @@ const KEY_VISITED = 'carte-voyages:v1' // nom d'origine, gardé pour ne rien per
 const KEY_WISH = 'carte-voyages:envies'
 const KEY_SETTINGS = 'carte-voyages:reglages'
 const KEY_SOUVENIRS = 'carte-voyages:souvenirs'
+const KEY_VILLES = 'carte-voyages:villes'
+
+export const villeKey = (v) => `${v.cc}|${v.nom}`
+
+function cleanVille(v) {
+  if (!v || typeof v !== 'object') return null
+  const { nom, cc, lat, lon } = v
+  if (typeof nom !== 'string' || !nom || !/^[A-Z]{2}$/.test(cc)) return null
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  return { nom: nom.slice(0, 80), cc, lat, lon, addedAt: Number.isFinite(v.addedAt) ? v.addedAt : Date.now() }
+}
+
+function toVilles(list) {
+  const map = new Map()
+  for (const v of Array.isArray(list) ? list : []) {
+    const clean = cleanVille(v)
+    if (clean) map.set(villeKey(clean), clean)
+  }
+  return map
+}
 
 // Un souvenir : année de visite, coup de cœur, quelques mots.
 function cleanSouvenir(s) {
@@ -63,6 +83,11 @@ export function createStore(storage = safeStorage()) {
   }
   const keys = { visited: KEY_VISITED, wish: KEY_WISH }
   let souvenirs = toSouvenirs(read(storage, KEY_SOUVENIRS, {}))
+  const villes = toVilles(read(storage, KEY_VILLES, []))
+  const saveVilles = () => {
+    write(storage, KEY_VILLES, [...villes.values()])
+    listeners.forEach((fn) => fn())
+  }
   let settings = read(storage, KEY_SETTINGS, {})
   if (!settings || typeof settings !== 'object') settings = {}
   const listeners = new Set()
@@ -113,6 +138,30 @@ export function createStore(storage = safeStorage()) {
     add: visited.add,
     remove: visited.remove,
 
+    villes: {
+      list: () => [...villes.values()],
+      of: (cc) => [...villes.values()].filter((v) => v.cc === cc).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+      has: (v) => villes.has(villeKey(v)),
+      get size() {
+        return villes.size
+      },
+      // Ajouter une ville coche aussi son pays. Renvoie true si le pays vient d'être ajouté.
+      add(v) {
+        const clean = cleanVille(v)
+        if (!clean || villes.has(villeKey(clean))) return false
+        villes.set(villeKey(clean), clean)
+        const paysAjoute = visited.add(clean.cc)
+        saveVilles()
+        return paysAjoute
+      },
+      remove(v) {
+        const key = villeKey(v)
+        const old = villes.get(key) ?? null
+        if (villes.delete(key)) saveVilles()
+        return old
+      },
+    },
+
     souvenir: (code) => souvenirs[code] ?? { annee: null, coeur: false, texte: '' },
     setSouvenir(code, patch) {
       const next = cleanSouvenir({ ...(souvenirs[code] ?? {}), ...patch })
@@ -141,6 +190,7 @@ export function createStore(storage = safeStorage()) {
         visites: [...lists.visited].map(([code, addedAt]) => ({ code, addedAt })),
         envies: [...lists.wish].map(([code, addedAt]) => ({ code, addedAt })),
         souvenirs,
+        villes: [...villes.values()],
       }
     },
     // Fusionne une sauvegarde : rien de ce qui est déjà là n'est effacé.
@@ -157,6 +207,15 @@ export function createStore(storage = safeStorage()) {
       for (const [code, addedAt] of toMap(data.envies)) {
         if (!lists.visited.has(code) && !lists.wish.has(code)) lists.wish.set(code, addedAt)
       }
+      for (const [key, v] of toVilles(data.villes)) {
+        if (!villes.has(key)) villes.set(key, v)
+        if (!lists.visited.has(v.cc)) {
+          lists.visited.set(v.cc, v.addedAt)
+          lists.wish.delete(v.cc)
+          added++
+        }
+      }
+      write(storage, KEY_VILLES, [...villes.values()])
       const recus = toSouvenirs(data.souvenirs)
       souvenirs = { ...recus, ...souvenirs } // ce qui est déjà sur le téléphone gagne
       write(storage, KEY_SOUVENIRS, souvenirs)
