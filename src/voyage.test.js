@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { API_PAR_DEFAUT, createTrips, fusionnerTrajets, itineraireHtml, itineraireTexte, lienCarte, trajetsHtml } from './voyage.js'
+import { API_PAR_DEFAUT, createTrips, fusionnerTrajets, itineraireHtml, itineraireVide, itineraireTexte, lienCarte, trajetsHtml } from './voyage.js'
 
 function memoryStorage() {
   const data = {}
@@ -86,5 +86,14 @@ describe('trajets', () => {
     const v = t.add('JP', { jours: 2 }, exemple)
     t.update(v.id, { vols: [af] })
     expect(t.get(v.id).vols).toHaveLength(1)
+  })
+})
+
+describe('voyage sans itinéraire', () => {
+  it('garde la destination et propose de préparer l’itinéraire', () => {
+    const it = itineraireVide({ pays: 'Japon', ville: '', jours: 4 }, 'Tokyo')
+    expect(it).toMatchObject({ titre: 'Tokyo · 4 jours', etapes: ['Tokyo'], jours: [], vide: true })
+    expect(itineraireHtml(it, 'Japon')).toContain('id="v-gen"')
+    expect(itineraireVide({ pays: 'Japon', ville: 'Kyoto', jours: 1 }).titre).toBe('Kyoto · 1 jour')
   })
 })

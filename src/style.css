@@ -1782,3 +1782,12 @@ body.typing .fiche {
   text-decoration: none;
   white-space: nowrap;
 }
+
+#v-simple {
+  margin-top: 10px;
+  width: 100%;
+}
+
+#v-gen {
+  margin-top: 6px;
+}

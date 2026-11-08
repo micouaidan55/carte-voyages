@@ -118,8 +118,29 @@ export function lienCarte(...termes) {
 
 const MOMENTS = { matin: '☀️ Matin', 'après-midi': '🌤️ Après-midi', soir: '🌙 Soir' }
 
+// Voyage créé sans IA : seulement la destination, pour réserver tout de suite.
+export function itineraireVide(demande, capitale = '') {
+  const ville = demande.ville || capitale
+  return {
+    titre: `${ville || demande.pays} · ${demande.jours} jour${demande.jours > 1 ? 's' : ''}`,
+    resume: '',
+    etapes: ville ? [ville] : [],
+    jours: [],
+    budget: '',
+    conseils: [],
+    vide: true,
+  }
+}
+
 // Itinéraire en HTML. Tout texte venant de Claude est échappé.
 export function itineraireHtml(it, pays) {
+  if (it.vide) {
+    return `<div class="trip-result">
+    <h3 class="trip-title">${esc(it.titre)}</h3>
+    <p class="trip-summary">Pas encore d’itinéraire. Vous pouvez déjà réserver dans l’onglet « Réserver » et préparer la valise.</p>
+    <button id="v-gen" class="button" type="button">✨ Préparer l’itinéraire avec Claude</button>
+  </div>`
+  }
   const jours = (it.jours ?? [])
     .map((j) => {
       const activites = (j.activites ?? [])

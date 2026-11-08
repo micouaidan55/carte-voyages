@@ -33,6 +33,7 @@ import {
   createTrips,
   demanderItineraire,
   itineraireHtml,
+  itineraireVide,
   itineraireTexte,
   fusionnerTrajets,
   lireReservation,
@@ -1279,14 +1280,16 @@ const ATTENTE = [
 ]
 
 let derniereDemande = null
+let derniereRemplace = null
 
-async function lancer(demande) {
+async function lancer(demande, remplacer = null) {
   if (!trips.api.code) {
     toast('Entrez d’abord le code d’accès du serveur')
     openSettings()
     return
   }
   derniereDemande = demande
+  derniereRemplace = remplacer
   voyageView('loading')
   let i = 0
   $('v-loading-text').textContent = ATTENTE[0]
@@ -1298,7 +1301,7 @@ async function lancer(demande) {
   const code = voyagePays
   try {
     const itineraire = await demanderItineraire(trips.api, demande, pending.signal)
-    const t = trips.add(code, demande, itineraire)
+    const t = remplacer && trips.get(remplacer) ? trips.update(remplacer, { itineraire }) : trips.add(code, demande, itineraire)
     tripShown = t
     $('v-result').innerHTML = itineraireHtml(itineraire, nameOf(code))
     voyageView('result')
@@ -1321,8 +1324,19 @@ $('v-form').addEventListener('submit', (e) => {
   e.preventDefault()
   lancer(lireFormulaire())
 })
+$('v-simple').addEventListener('click', () => {
+  const demande = lireFormulaire()
+  const t = trips.add(voyagePays, demande, itineraireVide(demande, PAYS[voyagePays]?.capitale?.nom))
+  tripShown = t
+  $('v-result').innerHTML = itineraireHtml(t.itineraire, nameOf(voyagePays))
+  voyageView('result')
+  showPanel('reserver')
+})
+$('v-result').addEventListener('click', (e) => {
+  if (e.target.closest('#v-gen') && tripShown) lancer(tripShown.demande, tripShown.id)
+})
 $('v-cancel').addEventListener('click', () => pending?.abort())
-$('v-retry').addEventListener('click', () => derniereDemande && lancer(derniereDemande))
+$('v-retry').addEventListener('click', () => derniereDemande && lancer(derniereDemande, derniereRemplace))
 $('v-edit').addEventListener('click', () => voyageView('form'))
 $('v-new').addEventListener('click', () => voyageView('form'))
 $('v-close').addEventListener('click', hideModal)
