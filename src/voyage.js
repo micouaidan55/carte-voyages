@@ -137,7 +137,7 @@ export function itineraireHtml(it, pays) {
   if (it.vide) {
     return `<div class="trip-result">
     <h3 class="trip-title">${esc(it.titre)}</h3>
-    <p class="trip-summary">Pas encore d’itinéraire. Vous pouvez déjà réserver dans l’onglet « Réserver » et préparer la valise.</p>
+    <p class="trip-summary">Pas encore d’itinéraire. Vous pouvez déjà réserver dans l’onglet « Réserver » et préparer le départ (onglet « Préparer »).</p>
     <button id="v-gen" class="button" type="button">✨ Préparer l’itinéraire avec Claude</button>
   </div>`
   }

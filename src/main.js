@@ -23,7 +23,7 @@ import {
 } from './info.js'
 import { createStore, villeKey } from './store.js'
 import { loadVilles, searchVilles } from './villes.js'
-import { genererValise, progression } from './valise.js'
+import { PARTIES, fusionnerValise, genererValise, progression } from './valise.js'
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import { aReserver, departPropose, plusJours } from './reserver.js'
@@ -1031,19 +1031,45 @@ $('v-tabs').addEventListener('click', (e) => {
   if (b) showPanel(b.dataset.panel)
 })
 
-function valiseOf(t) {
-  if (Array.isArray(t.valise)) return t.valise
-  const valise = genererValise({
+// Onglet Préparer : démarches, achats, sac à dos, valise et bébé.
+function prepOptions(t) {
+  if (t.prep) return t.prep
+  const qui = t.demande?.voyageurs ?? ''
+  return { bebe: false, enfants: /enfant/.test(qui) || (t.demande?.envies ?? []).includes('famille') }
+}
+
+function genererPour(t, opts) {
+  const home = store.home && store.home !== t.code ? store.home : null
+  return genererValise({
     code: t.code,
     home: store.home,
     jours: t.demande?.jours ?? 5,
     mois: t.demande?.mois ?? null,
     envies: t.demande?.envies ?? [],
     latitude: PAYS[t.code]?.capitale?.lat ?? PAYS[t.code]?.centre?.[0] ?? 45,
+    volHeures: home ? (trip(home, t.code).flight ?? 0) : 0,
+    autreMonnaie: Boolean(home && PAYS[home]?.monnaie !== PAYS[t.code]?.monnaie),
+    ...opts,
   })
+}
+
+function valiseOf(t) {
+  // Les anciennes listes (sans parties) sont refaites en gardant ce qui était coché.
+  if (Array.isArray(t.valise) && t.valise.some((i) => i.g)) return t.valise
+  const valise = fusionnerValise(t.valise ?? [], genererPour(t, prepOptions(t)))
   tripShown = trips.update(t.id, { valise })
   return valise
 }
+
+function togglePrep(cle) {
+  if (!tripShown) return
+  const opts = { ...prepOptions(tripShown), [cle]: !prepOptions(tripShown)[cle] }
+  const valise = fusionnerValise(valiseOf(tripShown), genererPour(tripShown, opts))
+  tripShown = trips.update(tripShown.id, { prep: opts, valise })
+  renderValise()
+}
+$('v-prep-bebe').addEventListener('click', () => togglePrep('bebe'))
+$('v-prep-enfants').addEventListener('click', () => togglePrep('enfants'))
 
 function updateTabCounts() {
   if (!tripShown) return
@@ -1064,42 +1090,80 @@ function saveValise(valise) {
 function renderValise() {
   if (!tripShown) return
   const valise = valiseOf(tripShown)
-  const p = progression(valise)
-  $('v-valise-bar').style.width = `${p.pct}%`
-  const cats = [...new Set(valise.map((i) => i.cat))]
+  const opts = prepOptions(tripShown)
+  $('v-prep-bebe').setAttribute('aria-pressed', opts.bebe)
+  $('v-prep-enfants').setAttribute('aria-pressed', opts.enfants)
+  $('v-valise-bar').style.width = `${progression(valise).pct}%`
+  const parties = PARTIES.filter((p) => p.id !== 'bebe' || valise.some((i) => i.g === 'bebe'))
+  const partieDe = (i) => i.g ?? 'valise'
+  $('v-prep-nav').replaceChildren(
+    ...parties.map((p) => {
+      const pr = progression(valise.filter((i) => partieDe(i) === p.id))
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'prep-jump' + (pr.total && pr.ok === pr.total ? ' done' : '')
+      b.innerHTML = `<span>${p.icone}</span><small></small>`
+      b.querySelector('small').textContent = `${pr.ok}/${pr.total}`
+      b.setAttribute('aria-label', `${p.titre} : ${pr.ok} sur ${pr.total}`)
+      b.addEventListener('click', () => $(`prep-${p.id}`).scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      return b
+    }),
+  )
   $('v-valise-list').replaceChildren(
-    ...cats.map((cat) => {
-      const box = document.createElement('section')
-      box.className = 'valise-cat'
-      const h = document.createElement('h4')
-      h.textContent = cat
-      box.append(h)
-      valise.forEach((item, i) => {
-        if (item.cat !== cat) return
-        const row = document.createElement('div')
-        row.className = 'valise-item' + (item.ok ? ' ok' : '')
-        row.innerHTML = `<label><input type="checkbox" ${item.ok ? 'checked' : ''} /><span></span></label><button class="x" type="button" aria-label="Retirer">✕</button>`
-        row.querySelector('span').textContent = item.t
-        row.querySelector('input').addEventListener('change', (e) => {
-          const next = valise.map((it, j) => (j === i ? { ...it, ok: e.target.checked } : it))
-          saveValise(next)
+    ...parties.map((p) => {
+      const part = document.createElement('section')
+      part.className = 'prep-part'
+      part.id = `prep-${p.id}`
+      const pr = progression(valise.filter((i) => partieDe(i) === p.id))
+      const h = document.createElement('h3')
+      h.innerHTML = '<span></span><small></small>'
+      h.querySelector('span').textContent = `${p.icone} ${p.titre}`
+      h.querySelector('small').textContent = `${pr.ok}/${pr.total}`
+      part.append(h)
+      const cats = [...new Set(valise.filter((i) => partieDe(i) === p.id).map((i) => i.cat))]
+      for (const cat of cats) {
+        const box = document.createElement('div')
+        box.className = 'valise-cat'
+        const h4 = document.createElement('h4')
+        h4.textContent = cat
+        box.append(h4)
+        valise.forEach((item, i) => {
+          if (item.cat !== cat || partieDe(item) !== p.id) return
+          const row = document.createElement('div')
+          row.className = 'valise-item' + (item.ok ? ' ok' : '')
+          row.innerHTML = `<label><input type="checkbox" ${item.ok ? 'checked' : ''} /><span></span></label><button class="x" type="button" aria-label="Retirer">✕</button>`
+          row.querySelector('span').textContent = item.t
+          row.querySelector('input').addEventListener('change', (e) => {
+            saveValise(valise.map((it, j) => (j === i ? { ...it, ok: e.target.checked } : it)))
+          })
+          row.querySelector('.x').addEventListener('click', () => {
+            saveValise(valise.filter((_, j) => j !== i))
+            toast('Retiré de la liste', () => saveValise(valise))
+          })
+          box.append(row)
         })
-        row.querySelector('.x').addEventListener('click', () => saveValise(valise.filter((_, j) => j !== i)))
-        box.append(row)
+        part.append(box)
+      }
+      const form = document.createElement('form')
+      form.className = 'field add-item'
+      form.autocomplete = 'off'
+      form.innerHTML = '<input type="text" maxlength="80" />'
+      const input = form.querySelector('input')
+      input.placeholder = '＋ Ajouter…'
+      input.setAttribute('aria-label', `Ajouter à « ${p.titre} »`)
+      form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        const t = input.value.trim()
+        if (!t) return
+        saveValise([...valise, { g: p.id, cat: 'Mes ajouts', t: t.slice(0, 80), ok: false }])
+        $(`prep-${p.id}`).querySelector('form input').focus()
       })
-      return box
+      part.append(form)
+      return part
     }),
   )
   updateTabCounts()
 }
-
-$('v-valise-form').addEventListener('submit', (e) => {
-  e.preventDefault()
-  const t = $('v-valise-input').value.trim()
-  if (!t || !tripShown) return
-  saveValise([...valiseOf(tripShown), { cat: 'Mes ajouts', t: t.slice(0, 80), ok: false }])
-  $('v-valise-input').value = ''
-})
 
 function renderVols() {
   if (!tripShown) return

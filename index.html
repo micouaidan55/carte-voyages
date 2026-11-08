@@ -218,17 +218,19 @@
 
           <div id="v-tabs" class="segmented v-tabs" hidden>
             <button type="button" data-panel="plan" aria-pressed="true">Itinéraire</button>
-            <button type="button" data-panel="valise">Valise <span id="v-valise-count"></span></button>
+            <button type="button" data-panel="valise">Préparer <span id="v-valise-count"></span></button>
             <button type="button" data-panel="vols">Trajets <span id="v-vols-count"></span></button>
             <button type="button" data-panel="reserver">Réserver <span id="v-res-count"></span></button>
           </div>
           <div id="v-result" hidden></div>
           <div id="v-valise" class="valise" hidden>
+            <div class="prep-options chips">
+              <button id="v-prep-bebe" class="chip-toggle" type="button" aria-pressed="false">👶 Avec un bébé</button>
+              <button id="v-prep-enfants" class="chip-toggle" type="button" aria-pressed="false">🧒 Avec des enfants</button>
+            </div>
             <div class="valise-progress"><span id="v-valise-bar"></span></div>
+            <nav id="v-prep-nav" class="prep-nav" aria-label="Parties"></nav>
             <div id="v-valise-list"></div>
-            <form id="v-valise-form" class="field add-item" autocomplete="off">
-              <input id="v-valise-input" type="text" placeholder="＋ Ajouter un objet…" aria-label="Ajouter un objet à la valise" maxlength="80" />
-            </form>
           </div>
           <div id="v-vols" class="vols" hidden>
             <div id="v-vols-list"></div>

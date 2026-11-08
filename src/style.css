@@ -1791,3 +1791,62 @@ body.typing .fiche {
 #v-gen {
   margin-top: 6px;
 }
+
+/* Préparer */
+.prep-options {
+  margin-bottom: 12px;
+}
+
+.prep-nav {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+  margin: 10px 0 4px;
+  padding: 6px 0;
+  background: var(--panel-solid);
+}
+
+.prep-jump {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 20px;
+}
+
+.prep-jump small {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.prep-jump.done small {
+  color: var(--visited);
+  font-weight: 700;
+}
+
+.prep-part {
+  scroll-margin-top: 70px;
+  margin-top: 18px;
+}
+
+.prep-part h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0;
+  font-size: 19px;
+}
+
+.prep-part h3 small {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
