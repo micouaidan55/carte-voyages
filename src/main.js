@@ -27,6 +27,7 @@ import { PARTIES, fusionnerValise, genererValise, progression } from './valise.j
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import { aReserver, departPropose, plusJours } from './reserver.js'
+import { CATEGORIES, bilan, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
 import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage } from './rappels.js'
 import {
   API_PAR_DEFAUT,
@@ -1010,7 +1011,7 @@ function voyageView(view) {
     $(id).hidden = view !== name
   $('v-share').hidden = view !== 'result'
   if (view === 'result') showPanel('plan')
-  else for (const id of ['v-result', 'v-valise', 'v-vols', 'v-reserver']) $(id).hidden = true
+  else for (const id of ['v-result', 'v-valise', 'v-vols', 'v-reserver', 'v-depenses']) $(id).hidden = true
   $('v-body').scrollTop = 0
 }
 
@@ -1020,11 +1021,13 @@ function showPanel(name) {
   $('v-valise').hidden = name !== 'valise'
   $('v-vols').hidden = name !== 'vols'
   $('v-reserver').hidden = name !== 'reserver'
+  $('v-depenses').hidden = name !== 'depenses'
   $('v-result-actions').hidden = name !== 'plan'
   for (const b of $('v-tabs').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.panel === name)
   if (name === 'valise') renderValise()
   if (name === 'vols') renderVols()
   if (name === 'reserver') renderReserver()
+  if (name === 'depenses') renderDepenses(true)
   updateTabCounts()
 }
 
@@ -1354,6 +1357,176 @@ $('v-res-date').addEventListener('change', (e) => {
 })
 $('v-res-moins').addEventListener('click', () => saveReservation({ adultes: Math.max(1, reservationOf(tripShown).adultes - 1) }))
 $('v-res-plus').addEventListener('click', () => saveReservation({ adultes: Math.min(9, reservationOf(tripShown).adultes + 1) }))
+
+// Onglet Budget : dépenses saisies sur place, converties dans la monnaie de la maison.
+let tauxMaison = null
+let deviseSaisie = null
+let catSaisie = 'repas'
+
+const monnaieMaison = () => (store.home && PAYS[store.home]?.monnaie) || 'EUR'
+const monnaieLocale = (t) => PAYS[t.code]?.monnaie || monnaieMaison()
+
+$('v-dep-cats').replaceChildren(
+  ...CATEGORIES.map((c) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'chip-toggle'
+    b.dataset.cat = c.id
+    b.textContent = `${c.icone} ${c.nom}`
+    b.addEventListener('click', () => {
+      catSaisie = c.id
+      renderDepenses()
+    })
+    return b
+  }),
+)
+
+async function renderDepenses(chargerTaux = false) {
+  if (!tripShown) return
+  const t = tripShown
+  const maison = monnaieMaison()
+  const locale = monnaieLocale(t)
+  if (!deviseSaisie || ![maison, locale].includes(deviseSaisie)) deviseSaisie = locale
+  const symbole = (d) => formatArgent(0, d).replace(/[\d\s,.  ]/g, '') || d
+  $('v-dep-devise').textContent = `${symbole(deviseSaisie)} ${deviseSaisie}`
+  $('v-dep-devise').disabled = maison === locale
+  for (const b of $('v-dep-cats').children) b.setAttribute('aria-pressed', b.dataset.cat === catSaisie)
+
+  const rates = tauxMaison?.base === maison ? tauxMaison.rates : null
+  const { depart } = datesOf(t)
+  const jours = t.demande?.jours ?? 5
+  const b = bilan(t.depenses ?? [], { maison, rates, budget: t.budgetPrevu ?? null, depart, jours, today: aujourdhui() })
+  $('v-dep-total').textContent = formatArgent(b.total, maison)
+  if (t.budgetPrevu) {
+    $('v-dep-reste-label').textContent = b.reste >= 0 ? `Reste sur ${formatArgent(t.budgetPrevu, maison)}` : 'Budget dépassé de'
+    $('v-dep-reste').textContent = formatArgent(Math.abs(b.reste), maison)
+    $('v-dep-reste').className = b.reste < 0 ? 'over' : ''
+    $('v-dep-bar').style.width = `${Math.min(100, Math.round((b.total / t.budgetPrevu) * 100))}%`
+  } else {
+    $('v-dep-reste-label').textContent = 'Budget'
+    $('v-dep-reste').textContent = 'Fixer ›'
+    $('v-dep-reste').className = ''
+    $('v-dep-bar').style.width = '0%'
+  }
+  const infos = []
+  if (b.total) infos.push(`${formatArgent(b.moyenne, maison)} par jour en moyenne`)
+  if (b.projection) infos.push(`environ ${formatArgent(b.projection, maison)} à ce rythme sur ${jours} jours`)
+  if (b.sansTaux) infos.push(`${b.sansTaux} dépense${b.sansTaux > 1 ? 's' : ''} sans taux de change (hors connexion)`)
+  $('v-dep-info').textContent = infos.join(' · ')
+
+  $('v-dep-bilan').replaceChildren(
+    ...b.parCat.map((c) => {
+      const row = document.createElement('div')
+      row.className = 'dep-cat'
+      row.innerHTML = '<span class="dep-cat-nom"></span><span class="dep-cat-bar"><i></i></span><span class="dep-cat-total"></span>'
+      row.querySelector('.dep-cat-nom').textContent = `${c.icone} ${c.nom}`
+      row.querySelector('i').style.width = `${c.pct}%`
+      row.querySelector('.dep-cat-total').textContent = formatArgent(c.total, maison)
+      return row
+    }),
+  )
+
+  const sansTauxItems = (t.depenses ?? []).filter((d) => !b.parJour.some((j) => j.items.includes(d)))
+  const groupes = [...b.parJour]
+  if (sansTauxItems.length) groupes.push({ date: null, total: null, items: sansTauxItems })
+  $('v-dep-list').replaceChildren(
+    ...groupes.map((g) => {
+      const box = document.createElement('section')
+      box.className = 'dep-jour'
+      const h = document.createElement('h4')
+      h.innerHTML = '<span></span><span></span>'
+      h.firstChild.textContent = g.date
+        ? new Date(`${g.date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+        : 'Sans taux de change'
+      h.lastChild.textContent = g.total != null ? formatArgent(g.total, maison) : ''
+      box.append(h)
+      for (const d of [...g.items].reverse()) {
+        const cat = CATEGORIES.find((c) => c.id === d.cat) ?? CATEGORIES.at(-1)
+        const row = document.createElement('div')
+        row.className = 'dep-item'
+        row.innerHTML = '<span class="dep-icone"></span><span class="dep-texte"><strong></strong><small></small></span><span class="dep-montant"></span><button class="x" type="button" aria-label="Supprimer">✕</button>'
+        row.querySelector('.dep-icone').textContent = cat.icone
+        row.querySelector('strong').textContent = d.note || cat.nom
+        const conv = d.devise !== maison && d.valeur != null && d.maison === maison ? `≈ ${formatArgent(d.valeur, maison)}` : ''
+        row.querySelector('small').textContent = conv
+        row.querySelector('.dep-montant').textContent = formatArgent(d.montant, d.devise)
+        row.querySelector('.x').addEventListener('click', () => {
+          const avant = tripShown.depenses
+          tripShown = trips.update(tripShown.id, { depenses: avant.filter((x) => x.id !== d.id) })
+          renderDepenses()
+          toast('Dépense supprimée', () => {
+            tripShown = trips.update(tripShown.id, { depenses: avant })
+            renderDepenses()
+          })
+        })
+        box.append(row)
+      }
+      return box
+    }),
+  )
+  apercuConversion()
+  $('v-dep-source').innerHTML = rates
+    ? `Taux du ${new Date(tauxMaison.date).toLocaleDateString('fr-FR')} · <a href="${SOURCE.url}" target="_blank" rel="noopener">${SOURCE.nom}</a>. La valeur est figée au jour de la saisie.`
+    : ''
+
+  if (chargerTaux && maison !== locale) {
+    const taux = await getTaux(maison)
+    if (taux && taux !== tauxMaison) {
+      tauxMaison = taux
+      if (tripShown?.id === t.id && !$('v-depenses').hidden) renderDepenses()
+    }
+  }
+}
+
+function apercuConversion() {
+  const maison = monnaieMaison()
+  const m = lireMontant($('v-dep-montant').value)
+  const r = tauxMaison?.base === maison ? tauxMaison.rates?.[deviseSaisie] : null
+  $('v-dep-conv').textContent = m && deviseSaisie !== maison && r ? `≈ ${formatArgent(m / r, maison)}` : ''
+}
+
+$('v-dep-montant').addEventListener('input', apercuConversion)
+$('v-dep-devise').addEventListener('click', () => {
+  if (!tripShown) return
+  const maison = monnaieMaison()
+  deviseSaisie = deviseSaisie === maison ? monnaieLocale(tripShown) : maison
+  renderDepenses()
+})
+
+$('v-dep-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  if (!tripShown) return
+  const montant = lireMontant($('v-dep-montant').value)
+  if (!montant) {
+    toast('Entrez un montant, par exemple 12,50')
+    $('v-dep-montant').focus()
+    return
+  }
+  const maison = monnaieMaison()
+  const rates = tauxMaison?.base === maison ? tauxMaison.rates : null
+  const d = nouvelleDepense(
+    { montant, devise: deviseSaisie, cat: catSaisie, note: $('v-dep-note').value, date: aujourdhui() },
+    maison,
+    rates,
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+  )
+  tripShown = trips.update(tripShown.id, { depenses: [...(tripShown.depenses ?? []), d] })
+  $('v-dep-montant').value = ''
+  $('v-dep-note').value = ''
+  renderDepenses()
+  toast(`Ajouté : ${formatArgent(montant, d.devise)}`)
+})
+
+$('v-dep-budget').addEventListener('click', () => {
+  if (!tripShown) return
+  const maison = monnaieMaison()
+  const rep = prompt(`Budget total du voyage (${maison}) — laisser vide pour aucun`, tripShown.budgetPrevu ?? '')
+  if (rep === null) return
+  const n = rep.trim() ? lireMontant(rep) : null
+  if (rep.trim() && !n) return toast('Budget illisible')
+  tripShown = trips.update(tripShown.id, { budgetPrevu: n })
+  renderDepenses()
+})
 
 function openVoyage(code) {
   voyagePays = code

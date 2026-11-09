@@ -1906,3 +1906,167 @@ body.typing .fiche {
   color: var(--visited);
   font-weight: 600;
 }
+
+/* Budget */
+.v-tabs button {
+  font-size: 13.5px;
+  padding: 0 2px;
+}
+
+.dep-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.dep-total > * {
+  display: flex;
+  flex-direction: column;
+}
+
+.dep-total small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dep-total strong {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dep-budget {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.dep-budget strong {
+  font-size: 18px;
+  color: var(--visited);
+}
+
+.dep-budget strong.over {
+  color: #d64545;
+}
+
+#v-dep-bar {
+  transition: width 0.3s;
+}
+
+.dep-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 6px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--bg);
+}
+
+.dep-form .v-input,
+.dep-form .chip-toggle {
+  background: var(--panel-solid);
+}
+
+.dep-ligne {
+  display: flex;
+  gap: 8px;
+}
+
+.dep-ligne .v-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.dep-ligne .chip-toggle {
+  flex: none;
+  min-height: 48px;
+  font-weight: 600;
+}
+
+#v-dep-conv {
+  margin: -4px 0 0;
+  min-height: 1em;
+}
+
+.dep-cat {
+  display: grid;
+  grid-template-columns: 7.5em 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 14px;
+}
+
+.dep-cat-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.dep-cat-bar i {
+  display: block;
+  height: 100%;
+  background: var(--visited);
+  border-radius: 4px;
+}
+
+.dep-cat-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.dep-jour h4 {
+  display: flex;
+  justify-content: space-between;
+  margin: 18px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.dep-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dep-icone {
+  font-size: 20px;
+}
+
+.dep-texte {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dep-texte strong {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dep-texte small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dep-montant {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dep-item .x {
+  width: 36px;
+  height: 36px;
+  color: var(--muted);
+}

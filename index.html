@@ -217,10 +217,11 @@
           </div>
 
           <div id="v-tabs" class="segmented v-tabs" hidden>
-            <button type="button" data-panel="plan" aria-pressed="true">Itinéraire</button>
+            <button type="button" data-panel="plan" aria-pressed="true">Plan</button>
             <button type="button" data-panel="valise">Préparer <span id="v-valise-count"></span></button>
             <button type="button" data-panel="vols">Trajets <span id="v-vols-count"></span></button>
             <button type="button" data-panel="reserver">Réserver <span id="v-res-count"></span></button>
+            <button type="button" data-panel="depenses">Budget</button>
           </div>
           <div id="v-result" hidden></div>
           <div id="v-valise" class="valise" hidden>
@@ -261,6 +262,27 @@
             <p id="v-res-retour" class="help"></p>
             <div id="v-res-list"></div>
             <p class="help center">Les liens ouvrent Google Vols, Booking, Airbnb ou GetYourGuide avec vos dates déjà remplies. Le paiement se fait sur ces sites ; cochez ici ce qui est réservé.</p>
+          </div>
+          <div id="v-depenses" class="depenses" hidden>
+            <div class="dep-total">
+              <div><small>Dépensé</small><strong id="v-dep-total"></strong></div>
+              <button id="v-dep-budget" type="button" class="dep-budget"><small id="v-dep-reste-label">Budget</small><strong id="v-dep-reste"></strong></button>
+            </div>
+            <div class="valise-progress"><span id="v-dep-bar"></span></div>
+            <p id="v-dep-info" class="help"></p>
+            <form id="v-dep-form" class="dep-form" autocomplete="off">
+              <div class="dep-ligne">
+                <input id="v-dep-montant" class="v-input" type="text" inputmode="decimal" placeholder="Montant" aria-label="Montant" />
+                <button id="v-dep-devise" class="chip-toggle" type="button" aria-label="Changer de monnaie"></button>
+              </div>
+              <div id="v-dep-cats" class="chips" role="group" aria-label="Catégorie"></div>
+              <input id="v-dep-note" class="v-input" type="text" maxlength="60" placeholder="Note (facultatif)" aria-label="Note" />
+              <p id="v-dep-conv" class="help"></p>
+              <button class="button" type="submit">Ajouter la dépense</button>
+            </form>
+            <div id="v-dep-bilan"></div>
+            <div id="v-dep-list"></div>
+            <p id="v-dep-source" class="help center"></p>
           </div>
           <div id="v-result-actions" class="buttons result-actions" hidden>
             <button id="v-new" class="button secondary" type="button">Préparer une autre version</button>
