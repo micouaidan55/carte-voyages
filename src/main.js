@@ -27,7 +27,7 @@ import { PARTIES, fusionnerValise, genererValise, progression } from './valise.j
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import { aReserver, departPropose, plusJours } from './reserver.js'
-import { CATEGORIES, bilan, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
+import { CATEGORIES, bilan, equilibre, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
 import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage } from './rappels.js'
 import {
   API_PAR_DEFAUT,
@@ -1362,6 +1362,8 @@ $('v-res-plus').addEventListener('click', () => saveReservation({ adultes: Math.
 let tauxMaison = null
 let deviseSaisie = null
 let catSaisie = 'repas'
+let parSaisie = null
+let pourSaisie = null // null = tout le monde
 
 const monnaieMaison = () => (store.home && PAYS[store.home]?.monnaie) || 'EUR'
 const monnaieLocale = (t) => PAYS[t.code]?.monnaie || monnaieMaison()
@@ -1428,7 +1430,10 @@ async function renderDepenses(chargerTaux = false) {
 
   const sansTauxItems = (t.depenses ?? []).filter((d) => !b.parJour.some((j) => j.items.includes(d)))
   const groupes = [...b.parJour]
-  if (sansTauxItems.length) groupes.push({ date: null, total: null, items: sansTauxItems })
+  const rembItems = sansTauxItems.filter((d) => d.remb)
+  const sansTauxVrai = sansTauxItems.filter((d) => !d.remb)
+  if (sansTauxVrai.length) groupes.push({ date: null, total: null, items: sansTauxVrai })
+  if (rembItems.length) groupes.push({ date: null, total: null, items: rembItems, titre: 'Remboursements entre voyageurs' })
   $('v-dep-list').replaceChildren(
     ...groupes.map((g) => {
       const box = document.createElement('section')
@@ -1437,7 +1442,7 @@ async function renderDepenses(chargerTaux = false) {
       h.innerHTML = '<span></span><span></span>'
       h.firstChild.textContent = g.date
         ? new Date(`${g.date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
-        : 'Sans taux de change'
+        : g.titre || 'Sans taux de change'
       h.lastChild.textContent = g.total != null ? formatArgent(g.total, maison) : ''
       box.append(h)
       for (const d of [...g.items].reverse()) {
@@ -1445,10 +1450,11 @@ async function renderDepenses(chargerTaux = false) {
         const row = document.createElement('div')
         row.className = 'dep-item'
         row.innerHTML = '<span class="dep-icone"></span><span class="dep-texte"><strong></strong><small></small></span><span class="dep-montant"></span><button class="x" type="button" aria-label="Supprimer">✕</button>'
-        row.querySelector('.dep-icone').textContent = cat.icone
-        row.querySelector('strong').textContent = d.note || cat.nom
+        row.querySelector('.dep-icone').textContent = d.remb ? '🤝' : cat.icone
+        row.querySelector('strong').textContent = d.remb ? `${d.par} → ${d.pour[0]}` : d.note || cat.nom
         const conv = d.devise !== maison && d.valeur != null && d.maison === maison ? `≈ ${formatArgent(d.valeur, maison)}` : ''
-        row.querySelector('small').textContent = conv
+        const qui = !d.remb && d.par && (t.participants ?? []).length > 1 ? partageTexte(d, t.participants) : ''
+        row.querySelector('small').textContent = [qui, conv].filter(Boolean).join(' · ')
         row.querySelector('.dep-montant').textContent = formatArgent(d.montant, d.devise)
         row.querySelector('.x').addEventListener('click', () => {
           const avant = tripShown.depenses
@@ -1464,6 +1470,7 @@ async function renderDepenses(chargerTaux = false) {
       return box
     }),
   )
+  renderPartage(t, maison, rates)
   apercuConversion()
   $('v-dep-source').innerHTML = rates
     ? `Taux du ${new Date(tauxMaison.date).toLocaleDateString('fr-FR')} · <a href="${SOURCE.url}" target="_blank" rel="noopener">${SOURCE.nom}</a>. La valeur est figée au jour de la saisie.`
@@ -1505,7 +1512,7 @@ $('v-dep-form').addEventListener('submit', (e) => {
   const maison = monnaieMaison()
   const rates = tauxMaison?.base === maison ? tauxMaison.rates : null
   const d = nouvelleDepense(
-    { montant, devise: deviseSaisie, cat: catSaisie, note: $('v-dep-note').value, date: aujourdhui() },
+    { montant, devise: deviseSaisie, cat: catSaisie, note: $('v-dep-note').value, date: aujourdhui(), ...partageSaisi(tripShown) },
     maison,
     rates,
     `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
@@ -1513,9 +1520,133 @@ $('v-dep-form').addEventListener('submit', (e) => {
   tripShown = trips.update(tripShown.id, { depenses: [...(tripShown.depenses ?? []), d] })
   $('v-dep-montant').value = ''
   $('v-dep-note').value = ''
+  pourSaisie = null
   renderDepenses()
   toast(`Ajouté : ${formatArgent(montant, d.devise)}`)
 })
+
+// Partage des frais entre voyageurs.
+const gensDe = (t) => t.participants ?? []
+
+function partageTexte(d, gens) {
+  const pour = d.pour.length === gens.length && gens.every((n) => d.pour.includes(n)) ? 'tous' : d.pour.join(', ')
+  return `${d.par} pour ${pour}`
+}
+
+function partageSaisi(t) {
+  const gens = gensDe(t)
+  if (gens.length < 2) return {}
+  const pour = pourSaisie ? gens.filter((n) => pourSaisie.includes(n)) : gens
+  return { par: gens.includes(parSaisie) ? parSaisie : gens[0], pour }
+}
+
+function puce(texte, actif, onClick, label) {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'chip-toggle'
+  b.textContent = texte
+  if (actif != null) b.setAttribute('aria-pressed', actif)
+  if (label) b.setAttribute('aria-label', label)
+  b.addEventListener('click', onClick)
+  return b
+}
+
+function ajouterVoyageurs() {
+  const gens = gensDe(tripShown)
+  const rep = prompt(gens.length ? 'Prénom du voyageur à ajouter' : 'Prénoms des voyageurs, séparés par des virgules (par exemple : Moi, Léa)', '')
+  if (!rep) return
+  const noms = rep
+    .split(',')
+    .map((n) => n.trim().slice(0, 20))
+    .filter((n) => n && !gens.includes(n))
+  if (!noms.length) return
+  tripShown = trips.update(tripShown.id, { participants: [...gens, ...new Set(noms)].slice(0, 12) })
+  pourSaisie = null
+  renderDepenses()
+}
+
+function retirerVoyageur(nom) {
+  if ((tripShown.depenses ?? []).some((d) => d.par === nom || d.pour?.includes(nom)))
+    return toast(`${nom} a déjà des dépenses : supprimez-les d’abord`)
+  const avant = gensDe(tripShown)
+  tripShown = trips.update(tripShown.id, { participants: avant.filter((n) => n !== nom) })
+  renderDepenses()
+  toast(`${nom} retiré`, () => {
+    tripShown = trips.update(tripShown.id, { participants: avant })
+    renderDepenses()
+  })
+}
+
+function renderPartage(t, maison, rates) {
+  const gens = gensDe(t)
+  const partage = gens.length > 1
+  $('v-dep-gens').replaceChildren(
+    ...(gens.length ? [document.createTextNode('👥 ')] : []),
+    ...gens.map((n) => puce(`${n} ✕`, null, () => retirerVoyageur(n), `Retirer ${n}`)),
+    puce(gens.length ? '＋ Voyageur' : '👥 Partager les frais entre voyageurs', null, ajouterVoyageurs),
+  )
+  $('v-dep-partage').hidden = !partage
+  if (partage) {
+    if (!gens.includes(parSaisie)) parSaisie = gens[0]
+    if (pourSaisie && !pourSaisie.some((n) => gens.includes(n))) pourSaisie = null
+    const pour = pourSaisie ?? gens
+    $('v-dep-par').replaceChildren(
+      ...gens.map((n) =>
+        puce(n, n === parSaisie, () => {
+          parSaisie = n
+          renderPartage(tripShown, maison, rates)
+        }),
+      ),
+    )
+    $('v-dep-pour').replaceChildren(
+      ...gens.map((n) =>
+        puce(n, pour.includes(n), () => {
+          const s = pour.includes(n) ? pour.filter((x) => x !== n) : [...pour, n]
+          if (!s.length) return toast('Choisissez au moins une personne')
+          pourSaisie = s.length === gens.length ? null : s
+          renderPartage(tripShown, maison, rates)
+        }),
+      ),
+    )
+  }
+
+  const box = $('v-dep-comptes')
+  const e = partage ? equilibre(t.depenses ?? [], gens, { maison, rates }) : null
+  box.hidden = !e || !e.soldes.some((s) => s.paye)
+  if (box.hidden) return box.replaceChildren()
+  const h = document.createElement('h4')
+  h.textContent = 'Qui doit quoi'
+  const lignes = e.virements.length
+    ? e.virements.map((v) => {
+        const row = document.createElement('div')
+        row.className = 'dep-virement'
+        row.innerHTML = '<span></span><button class="link" type="button">Réglé</button>'
+        row.firstChild.textContent = `${v.de} doit ${formatArgent(v.montant, maison)} à ${v.a}`
+        row.lastChild.setAttribute('aria-label', `${v.de} a remboursé ${v.a}`)
+        row.lastChild.addEventListener('click', () => {
+          const r = nouvelleDepense(
+            { montant: v.montant, devise: maison, cat: 'autre', note: 'Remboursement', date: aujourdhui(), par: v.de, pour: [v.a], remb: true },
+            maison,
+            rates,
+            `${Date.now().toString(36)}r`,
+          )
+          tripShown = trips.update(tripShown.id, { depenses: [...(tripShown.depenses ?? []), r] })
+          renderDepenses()
+          toast(`${v.de} a remboursé ${v.a}`)
+        })
+        return row
+      })
+    : [Object.assign(document.createElement('p'), { className: 'help', textContent: 'Tout le monde est quitte 🎉' })]
+  const soldes = document.createElement('p')
+  soldes.className = 'help'
+  soldes.textContent = e.soldes
+    .map((s) => `${s.nom} a payé ${formatArgent(s.paye, maison)} (sa part : ${formatArgent(s.part, maison)})`)
+    .join(' · ')
+  const extra = []
+  if (e.ignorees) extra.push(`${e.ignorees} dépense${e.ignorees > 1 ? 's' : ''} sans payeur ou sans taux ne ${e.ignorees > 1 ? 'sont' : 'est'} pas comptée${e.ignorees > 1 ? 's' : ''}`)
+  const note = Object.assign(document.createElement('p'), { className: 'help', textContent: extra.join('') })
+  box.replaceChildren(h, ...lignes, soldes, ...(extra.length ? [note] : []))
+}
 
 $('v-dep-budget').addEventListener('click', () => {
   if (!tripShown) return

@@ -28,8 +28,10 @@ export function convertir(montant, devise, maison, rates) {
   return r ? montant / r : null
 }
 
-export function nouvelleDepense({ montant, devise, cat, note = '', date }, maison, rates, id = Date.now().toString(36)) {
+export function nouvelleDepense({ montant, devise, cat, note = '', date, par, pour, remb }, maison, rates, id = Date.now().toString(36)) {
   const valeur = convertir(montant, devise, maison, rates)
+  const partage = par && pour?.length ? { par, pour: [...pour] } : {}
+  if (remb) partage.remb = true
   return {
     id,
     montant,
@@ -39,6 +41,7 @@ export function nouvelleDepense({ montant, devise, cat, note = '', date }, maiso
     date,
     maison,
     valeur: valeur == null ? null : Math.round(valeur * 100) / 100,
+    ...partage,
   }
 }
 
@@ -54,6 +57,7 @@ export function bilan(depenses, { maison, rates, budget = null, depart = null, j
   const parCat = Object.fromEntries(CATEGORIES.map((c) => [c.id, 0]))
   const parJour = new Map()
   for (const d of depenses) {
+    if (d.remb) continue // un remboursement entre voyageurs n'est pas une dépense
     const v = valeurDe(d, maison, rates)
     if (v == null) {
       sansTaux++
@@ -87,6 +91,54 @@ export function bilan(depenses, { maison, rates, budget = null, depart = null, j
     reste: budget ? budget - total : null,
     projection,
   }
+}
+
+// Partage entre voyageurs : chaque dépense est divisée à parts égales entre les personnes concernées.
+// Renvoie le solde de chacun et les virements les moins nombreux pour tout régler.
+export function equilibre(depenses, participants, { maison, rates }) {
+  const soldes = participants.map((nom) => ({ nom, paye: 0, part: 0, verse: 0, recu: 0 }))
+  const de = Object.fromEntries(soldes.map((s) => [s.nom, s]))
+  let ignorees = 0
+  for (const d of depenses) {
+    const v = valeurDe(d, maison, rates)
+    const pour = (d.pour ?? []).filter((n) => de[n])
+    if (v == null || !de[d.par] || !pour.length) {
+      ignorees++
+      continue
+    }
+    if (d.remb) {
+      // Remboursement : réduit la dette sans changer ce que chacun a dépensé.
+      de[d.par].verse += v
+      for (const n of pour) de[n].recu += v / pour.length
+      continue
+    }
+    de[d.par].paye += v
+    for (const n of pour) de[n].part += v / pour.length
+  }
+  const cents = (x) => Math.round(x * 100)
+  for (const s of soldes) {
+    s.solde = (cents(s.paye) - cents(s.part) + cents(s.verse) - cents(s.recu)) / 100
+    delete s.verse
+    delete s.recu
+    s.paye = cents(s.paye) / 100
+    s.part = cents(s.part) / 100
+  }
+  // Le plus gros débiteur rembourse le plus gros créancier, et ainsi de suite (au centime près).
+  const doit = soldes.filter((s) => s.solde < 0).map((s) => ({ nom: s.nom, c: -cents(s.solde) }))
+  const recoit = soldes.filter((s) => s.solde > 0).map((s) => ({ nom: s.nom, c: cents(s.solde) }))
+  const virements = []
+  const tri = (l) => l.sort((a, b) => b.c - a.c)
+  while (tri(doit).length && tri(recoit).length) {
+    const d = doit[0]
+    const r = recoit[0]
+    const m = Math.abs(d.c - r.c) <= 1 ? d.c : Math.min(d.c, r.c)
+    virements.push({ de: d.nom, a: r.nom, montant: m / 100 })
+    d.c -= m
+    r.c -= m
+    if (d.c <= 1) doit.shift()
+    if (r.c <= 1) recoit.shift()
+  }
+  return { soldes, virements, ignorees }
 }
 
 export function formatArgent(montant, devise) {

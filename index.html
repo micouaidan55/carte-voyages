@@ -270,6 +270,7 @@
             </div>
             <div class="valise-progress"><span id="v-dep-bar"></span></div>
             <p id="v-dep-info" class="help"></p>
+            <div id="v-dep-gens" class="chips dep-gens" role="group" aria-label="Voyageurs qui partagent les frais"></div>
             <form id="v-dep-form" class="dep-form" autocomplete="off">
               <div class="dep-ligne">
                 <input id="v-dep-montant" class="v-input" type="text" inputmode="decimal" placeholder="Montant" aria-label="Montant" />
@@ -277,9 +278,16 @@
               </div>
               <div id="v-dep-cats" class="chips" role="group" aria-label="Catégorie"></div>
               <input id="v-dep-note" class="v-input" type="text" maxlength="60" placeholder="Note (facultatif)" aria-label="Note" />
+              <div id="v-dep-partage" class="dep-partage" hidden>
+                <small>Payé par</small>
+                <div id="v-dep-par" class="chips" role="group" aria-label="Payé par"></div>
+                <small>Pour</small>
+                <div id="v-dep-pour" class="chips" role="group" aria-label="Pour qui"></div>
+              </div>
               <p id="v-dep-conv" class="help"></p>
               <button class="button" type="submit">Ajouter la dépense</button>
             </form>
+            <div id="v-dep-comptes" class="dep-comptes" hidden></div>
             <div id="v-dep-bilan"></div>
             <div id="v-dep-list"></div>
             <p id="v-dep-source" class="help center"></p>

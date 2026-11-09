@@ -2070,3 +2070,40 @@ body.typing .fiche {
   height: 36px;
   color: var(--muted);
 }
+
+.dep-gens {
+  margin: 4px 0 10px;
+  align-items: center;
+}
+
+.dep-partage small {
+  display: block;
+  margin: 2px 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dep-comptes {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+}
+
+.dep-comptes h4 {
+  margin: 0 0 6px;
+}
+
+.dep-virement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-weight: 600;
+}
+
+.dep-virement .link {
+  flex: none;
+}
