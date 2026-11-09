@@ -28,6 +28,7 @@ import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import { aReserver, departPropose, plusJours } from './reserver.js'
 import { CATEGORIES, bilan, equilibre, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
+import { CLE_LIEN, decoderVoyage, encoderVoyage, fusionnerVoyage, nettoyerVoyage } from './invitation.js'
 import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage } from './rappels.js'
 import {
   API_PAR_DEFAUT,
@@ -36,7 +37,6 @@ import {
   demanderItineraire,
   itineraireHtml,
   itineraireVide,
-  itineraireTexte,
   fusionnerTrajets,
   lireReservation,
   trajetsHtml,
@@ -1774,18 +1774,70 @@ $('v-delete').addEventListener('click', () => {
   hideModal()
   toast('Voyage supprimé', () => trips.restore(removed))
 })
-$('v-share').addEventListener('click', async () => {
+// Inviter des amis : le voyage entier part dans un lien.
+async function inviter() {
   if (!tripShown) return
-  const text = itineraireTexte(tripShown.itineraire)
+  let url
   try {
-    if (navigator.share) await navigator.share({ title: tripShown.itineraire.titre, text })
-    else {
-      await navigator.clipboard.writeText(text)
-      toast('Itinéraire copié')
-    }
+    url = `${location.origin}${location.pathname}#${CLE_LIEN}=${await encoderVoyage(tripShown)}`
   } catch {
-    // Partage annulé.
+    return toast('Impossible de préparer le lien')
   }
+  const titre = tripShown.itineraire?.titre || nameOf(tripShown.code)
+  const text = `Je t’invite à mon voyage « ${titre} » ${flagOf(tripShown.code)} dans Mes pays. Ouvre le lien pour avoir tout le programme :`
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: titre, text, url })
+      return
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`)
+    toast('Lien d’invitation copié')
+  } catch {
+    prompt('Copiez ce lien et envoyez-le à vos amis', url)
+  }
+}
+$('v-share').addEventListener('click', inviter)
+$('v-inviter').addEventListener('click', inviter)
+
+// Ouvrir une invitation reçue (lien ouvert ou collé).
+async function recevoirInvitation(code) {
+  let t
+  try {
+    t = nettoyerVoyage(await decoderVoyage(code), new Set(Object.keys(PAYS)))
+  } catch (err) {
+    return toast(err.message?.startsWith('Lien') ? err.message : 'Invitation illisible : le lien est peut-être coupé')
+  }
+  if (!t) return toast('Invitation illisible : le lien est peut-être coupé')
+  const titre = t.itineraire.titre
+  const deja = trips.get(t.id)
+  const question = deja
+    ? `Mettre à jour votre voyage « ${titre} » avec cette invitation ? Rien de ce que vous avez ajouté n’est perdu.`
+    : `On vous invite au voyage « ${titre} » (${nameOf(t.code)}). L’ajouter à vos voyages ?`
+  if (!confirm(question)) return
+  if (deja) trips.update(t.id, fusionnerVoyage(deja, t))
+  else trips.restore(t)
+  openTrip(t.id)
+  toast(deja ? 'Voyage mis à jour' : 'Voyage ajouté à « Ma liste »')
+}
+
+function lireInvitationDansAdresse() {
+  const m = location.hash.match(new RegExp(`^#${CLE_LIEN}=([\\w-]+)`))
+  if (!m) return
+  history.replaceState(null, '', location.pathname + location.search)
+  recevoirInvitation(m[1])
+}
+window.addEventListener('hashchange', lireInvitationDansAdresse)
+
+$('btn-invitation').addEventListener('click', () => {
+  const rep = prompt('Collez le lien d’invitation reçu')
+  if (!rep) return
+  const m = rep.match(new RegExp(`#${CLE_LIEN}=([\\w-]+)`))
+  if (!m) return toast('Ce n’est pas un lien d’invitation Mes pays')
+  recevoirInvitation(m[1])
 })
 
 $('btn-settings').addEventListener('click', openSettings)
@@ -1858,6 +1910,7 @@ window.addEventListener('resize', () => {
 })
 
 navigator.storage?.persist?.().catch(() => {})
+lireInvitationDansAdresse()
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {})

@@ -148,7 +148,7 @@
         <div class="grabber" aria-hidden="true"></div>
         <header class="sheet-head">
           <h2 id="v-title">Préparer un voyage</h2>
-          <button id="v-share" class="link" type="button" hidden>Partager</button>
+          <button id="v-share" class="link" type="button" hidden>Inviter</button>
           <button id="v-close" class="link strong" type="button">Fermer</button>
         </header>
         <div id="v-body" class="voyage-body">
@@ -293,6 +293,8 @@
             <p id="v-dep-source" class="help center"></p>
           </div>
           <div id="v-result-actions" class="buttons result-actions" hidden>
+            <button id="v-inviter" class="button" type="button">👥 Inviter des amis à ce voyage</button>
+            <p class="help center">Ils reçoivent un lien avec tout le programme : plan, préparation, trajets, réservations et budget. Pour leur montrer vos changements suivants, renvoyez un lien : leur copie est mise à jour sans rien perdre.</p>
             <button id="v-new" class="button secondary" type="button">Préparer une autre version</button>
             <button id="v-delete" class="link danger" type="button">Supprimer ce voyage</button>
           </div>
@@ -333,6 +335,12 @@
             <button id="api-test" class="button secondary" type="submit">Enregistrer et vérifier</button>
             <p id="api-status" class="help" aria-live="polite"></p>
           </form>
+
+          <h3>Invitation à un voyage</h3>
+          <p class="help">Un ami vous a envoyé un lien et l’app installée sur l’écran d’accueil ne l’a pas ouvert ? Copiez le lien puis collez-le ici.</p>
+          <div class="buttons">
+            <button id="btn-invitation" class="button secondary" type="button">📩 Coller une invitation</button>
+          </div>
 
           <h3>Sauvegarde</h3>
           <p class="help">Vos pays restent sur ce téléphone. Gardez une copie au cas où vous changez d'appareil.</p>
