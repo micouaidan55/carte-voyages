@@ -28,6 +28,7 @@ import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
 import { aReserver, departPropose, plusJours } from './reserver.js'
 import { CATEGORIES, bilan, equilibre, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
+import { ajouterActivite, ajouterJour, ajouterRestaurant, modifierJour, retirerElement, retirerJour } from './plan.js'
 import { CLE_LIEN, decoderVoyage, encoderVoyage, fusionnerVoyage, nettoyerVoyage } from './invitation.js'
 import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage } from './rappels.js'
 import {
@@ -1676,8 +1677,9 @@ function openTrip(id) {
   if (!t) return
   voyagePays = t.code
   tripShown = t
+  editionPlan = false
   $('v-title').textContent = `${flagOf(t.code)} ${nameOf(t.code)}`
-  $('v-result').innerHTML = itineraireHtml(t.itineraire, nameOf(t.code))
+  renderPlan()
   voyageView('result')
   showModal($('voyage'))
 }
@@ -1731,7 +1733,8 @@ async function lancer(demande, remplacer = null) {
     const itineraire = await demanderItineraire(trips.api, demande, pending.signal)
     const t = remplacer && trips.get(remplacer) ? trips.update(remplacer, { itineraire }) : trips.add(code, demande, itineraire)
     tripShown = t
-    $('v-result').innerHTML = itineraireHtml(itineraire, nameOf(code))
+    editionPlan = false
+    renderPlan()
     voyageView('result')
     if (openModal !== $('voyage')) toast(`Voyage prêt : ${label(code)}`)
   } catch (e) {
@@ -1756,12 +1759,89 @@ $('v-simple').addEventListener('click', () => {
   const demande = lireFormulaire()
   const t = trips.add(voyagePays, demande, itineraireVide(demande, PAYS[voyagePays]?.capitale?.nom))
   tripShown = t
-  $('v-result').innerHTML = itineraireHtml(t.itineraire, nameOf(voyagePays))
+  editionPlan = false
+  renderPlan()
   voyageView('result')
   showPanel('reserver')
 })
+// Plan modifiable à la main.
+let editionPlan = false
+
+function renderPlan() {
+  if (!tripShown) return
+  $('v-result').innerHTML = itineraireHtml(tripShown.itineraire, nameOf(tripShown.code), { edition: editionPlan })
+}
+
+function savePlan(it, garderFocus) {
+  tripShown = trips.update(tripShown.id, { itineraire: it })
+  renderPlan()
+  updateTabCounts()
+  if (garderFocus != null) $('v-result').querySelector(`.plan-add[data-j="${garderFocus}"] [name="titre"]`)?.focus()
+}
+
 $('v-result').addEventListener('click', (e) => {
-  if (e.target.closest('#v-gen') && tripShown) lancer(tripShown.demande, tripShown.id)
+  if (!tripShown) return
+  const it = tripShown.itineraire
+  if (e.target.closest('#v-gen')) return lancer(tripShown.demande, tripShown.id)
+  if (e.target.closest('#plan-construire')) {
+    editionPlan = true
+    return savePlan({ ...ajouterJour(it), manuel: true }, 0)
+  }
+  if (e.target.closest('#plan-edit')) {
+    editionPlan = true
+    return renderPlan()
+  }
+  if (e.target.closest('#plan-fini')) {
+    editionPlan = false
+    renderPlan()
+    return $('v-result').scrollIntoView({ block: 'start' })
+  }
+  if (e.target.closest('#plan-add-jour')) {
+    const lieu = prompt('Où êtes-vous ce jour-là ?', it.jours.at(-1)?.lieu ?? it.etapes?.[0] ?? '')
+    if (lieu === null) return
+    return savePlan(ajouterJour(it, { lieu }), it.jours.length)
+  }
+  const x = e.target.closest('.plan-x')
+  if (x) {
+    const avant = it
+    savePlan(retirerElement(it, Number(x.dataset.j), x.dataset.type, Number(x.dataset.i)))
+    return toast('Retiré du plan', () => savePlan(avant))
+  }
+  const modif = e.target.closest('[data-edit-jour]')
+  if (modif) {
+    const j = Number(modif.dataset.editJour)
+    const jour = it.jours[j]
+    const lieu = prompt(`Lieu du jour ${jour.numero}`, jour.lieu)
+    if (lieu === null) return
+    const titre = prompt(`Titre du jour ${jour.numero}`, jour.titre)
+    if (titre === null) return
+    const deplacement = prompt('Trajet ce jour-là (facultatif, par exemple « Shinkansen Tokyo → Kyoto, 2 h 15 »)', jour.deplacement ?? '')
+    return savePlan(modifierJour(it, j, { lieu, titre, deplacement: deplacement ?? jour.deplacement }))
+  }
+  const suppr = e.target.closest('[data-suppr-jour]')
+  if (suppr) {
+    const avant = it
+    savePlan(retirerJour(it, Number(suppr.dataset.supprJour)))
+    toast('Jour retiré', () => savePlan(avant))
+  }
+})
+
+$('v-result').addEventListener('submit', (e) => {
+  const form = e.target.closest('.plan-add')
+  if (!form || !tripShown) return
+  e.preventDefault()
+  const j = Number(form.dataset.j)
+  const moment = form.moment.value
+  const titre = form.titre.value.trim()
+  if (!titre) return form.titre.focus()
+  const detail = form.detail.value
+  const it = tripShown.itineraire
+  const nouveau =
+    moment === 'déjeuner' || moment === 'dîner'
+      ? ajouterRestaurant(it, j, { repas: moment, nom: titre, pourquoi: detail })
+      : ajouterActivite(it, j, { moment, titre, detail })
+  savePlan(nouveau, j)
+  toast(`Ajouté au jour ${j + 1}`)
 })
 $('v-cancel').addEventListener('click', () => pending?.abort())
 $('v-retry').addEventListener('click', () => derniereDemande && lancer(derniereDemande, derniereRemplace))

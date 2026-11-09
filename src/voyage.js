@@ -132,59 +132,85 @@ export function itineraireVide(demande, capitale = '') {
   }
 }
 
-// Itinéraire en HTML. Tout texte venant de Claude est échappé.
-export function itineraireHtml(it, pays) {
-  if (it.vide) {
+// Itinéraire en HTML. Tout texte venant de Claude (ou d'un lien d'invitation) est échappé.
+// En mode édition, chaque élément a son bouton ✕ et chaque jour un petit formulaire d'ajout.
+export function itineraireHtml(it, pays, { edition = false } = {}) {
+  if (it.vide && !edition) {
     return `<div class="trip-result">
     <h3 class="trip-title">${esc(it.titre)}</h3>
     <p class="trip-summary">Pas encore d’itinéraire. Vous pouvez déjà réserver dans l’onglet « Réserver » et préparer le départ (onglet « Préparer »).</p>
     <button id="v-gen" class="button" type="button">✨ Préparer l’itinéraire avec Claude</button>
+    <button id="plan-construire" class="button secondary" type="button">✏️ Construire le plan moi-même</button>
   </div>`
   }
+  const x = (j, type, i, quoi) =>
+    edition ? `<button class="plan-x" type="button" data-j="${j}" data-type="${type}" data-i="${i}" aria-label="Retirer ${esc(quoi)}">✕</button>` : ''
   const jours = (it.jours ?? [])
-    .map((j) => {
+    .map((j, jn) => {
       const activites = (j.activites ?? [])
         .map(
-          (a) => `<li class="act">
-            <span class="moment">${esc(MOMENTS[a.moment] ?? a.moment)}</span>
+          (a, i) => `<li class="act">
+            ${x(jn, 'activites', i, a.titre)}<span class="moment">${esc(MOMENTS[a.moment] ?? a.moment)}</span>
             <strong>${esc(a.titre)}</strong>${a.duree ? ` <span class="duree">· ${esc(a.duree)}</span>` : ''}
-            <p>${esc(a.detail)}</p>
+            ${a.detail ? `<p>${esc(a.detail)}</p>` : ''}
           </li>`,
         )
         .join('')
       const restos = (j.restaurants ?? [])
-        .map((r) => {
-          const nom = r.nom || `${r.cuisine.charAt(0).toUpperCase() + r.cuisine.slice(1)} (au choix sur place)`
-          const lien = lienCarte(r.nom || `${r.cuisine} restaurant`, r.quartier, pays)
+        .map((r, i) => {
+          const cuisine = r.cuisine || ''
+          const nom = r.nom || `${cuisine.charAt(0).toUpperCase() + cuisine.slice(1)} (au choix sur place)`
+          const lien = lienCarte(r.nom || `${cuisine} restaurant`, r.quartier, pays)
+          const infos = [r.prix, cuisine, r.quartier].filter(Boolean).map(esc).join(' · ')
           return `<li class="resto">
-            <span class="moment">${r.repas === 'dîner' ? '🍷 Dîner' : '🥗 Déjeuner'}</span>
+            ${x(jn, 'restaurants', i, nom)}<span class="moment">${r.repas === 'dîner' ? '🍷 Dîner' : '🥗 Déjeuner'}</span>
             <a href="${esc(lien)}" target="_blank" rel="noopener"><strong>${esc(nom)}</strong> ↗</a>
-            <span class="duree">${esc(r.prix)} · ${esc(r.cuisine)}${r.quartier ? ' · ' + esc(r.quartier) : ''}</span>
-            <p>${esc(r.pourquoi)}</p>
+            ${infos ? `<span class="duree">${infos}</span>` : ''}
+            ${r.pourquoi ? `<p>${esc(r.pourquoi)}</p>` : ''}
           </li>`
         })
         .join('')
+      const ajout = edition
+        ? `<form class="plan-add" data-j="${jn}" autocomplete="off">
+            <div class="plan-add-ligne">
+              <select name="moment" aria-label="Moment">
+                <option value="matin">☀️ Matin</option><option value="après-midi">🌤️ Après-midi</option><option value="soir">🌙 Soir</option>
+                <option value="déjeuner">🥗 Déjeuner</option><option value="dîner">🍷 Dîner</option>
+              </select>
+              <input name="titre" class="v-input" maxlength="80" placeholder="Activité ou restaurant" aria-label="Activité ou restaurant" />
+            </div>
+            <input name="detail" class="v-input" maxlength="300" placeholder="Détail (facultatif)" aria-label="Détail" />
+            <button class="button secondary" type="submit">＋ Ajouter au jour ${esc(j.numero)}</button>
+          </form>`
+        : ''
+      const outils = edition
+        ? `<span class="plan-jour-outils"><button class="link" type="button" data-edit-jour="${jn}">Modifier</button><button class="link danger" type="button" data-suppr-jour="${jn}">Retirer</button></span>`
+        : ''
       return `<article class="day">
-        <header><span class="day-num">Jour ${esc(j.numero)}</span><span class="day-place">${esc(j.lieu)}</span></header>
+        <header><span class="day-num">Jour ${esc(j.numero)}</span><span class="day-place">${esc(j.lieu)}</span>${outils}</header>
         <h4>${esc(j.titre)}</h4>
         ${j.deplacement ? `<p class="move">🚆 ${esc(j.deplacement)}</p>` : ''}
         <ul class="acts">${activites}${restos}</ul>
+        ${ajout}
       </article>`
     })
     .join('')
 
-  return `<div class="trip-result">
+  const auteur = it.manuel ? '' : '<p class="ai-note">Préparé par Claude (IA). Vérifiez horaires et adresses avant d’y aller.</p>'
+  return `<div class="trip-result${edition ? ' edition' : ''}">
     <h3 class="trip-title">${esc(it.titre)}</h3>
-    <p class="trip-summary">${esc(it.resume)}</p>
+    ${edition ? '<p class="help">Mode modification : ajoutez ou retirez des activités, des restaurants et des jours.</p>' : '<button id="plan-edit" class="link plan-edit" type="button">✏️ Modifier le plan</button>'}
+    ${it.resume ? `<p class="trip-summary">${esc(it.resume)}</p>` : ''}
     ${it.etapes?.length ? `<p class="steps">${it.etapes.map((e) => `<span>${esc(e)}</span>`).join('<i>→</i>')}</p>` : ''}
     ${it.budget ? `<p class="budget">💶 ${esc(it.budget)}</p>` : ''}
     ${jours}
+    ${edition ? '<div class="buttons"><button id="plan-add-jour" class="button secondary" type="button">＋ Ajouter un jour</button><button id="plan-fini" class="button" type="button">Terminer</button></div>' : ''}
     ${
       it.conseils?.length
         ? `<section class="tips"><h4>Bon à savoir</h4><ul>${it.conseils.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></section>`
         : ''
     }
-    <p class="ai-note">Préparé par Claude (IA). Vérifiez horaires et adresses avant d’y aller.</p>
+    ${auteur}
   </div>`
 }
 

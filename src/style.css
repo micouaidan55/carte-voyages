@@ -2107,3 +2107,80 @@ body.typing .fiche {
 .dep-virement .link {
   flex: none;
 }
+
+/* Plan modifiable à la main */
+.plan-edit {
+  display: block;
+  margin: -4px 0 10px;
+  font-size: 14px;
+}
+
+.trip-result.edition .day {
+  outline: 1.5px dashed var(--line);
+}
+
+.plan-jour-outils {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.plan-jour-outils .link {
+  font-size: 13px;
+  padding: 0;
+}
+
+.acts li {
+  position: relative;
+}
+
+.plan-x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.edition .acts li {
+  padding-right: 38px;
+}
+
+.plan-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.plan-add-ligne {
+  display: flex;
+  gap: 8px;
+}
+
+.plan-add select {
+  flex: none;
+  max-width: 42%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-solid);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  padding: 0 8px;
+}
+
+.plan-add .v-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+}

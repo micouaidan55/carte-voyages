@@ -1,5 +1,6 @@
 // Inviter des amis à un voyage : tout le voyage tient dans le lien (après le #, jamais envoyé à un serveur).
 import { fusionnerTrajets } from './voyage.js'
+import { fusionnerPlans } from './plan.js'
 
 export const CLE_LIEN = 'invitation'
 const MAX = 200_000 // caractères de JSON au plus, pour refuser un lien piégé
@@ -111,7 +112,7 @@ export function nettoyerVoyage(t, paysValides) {
 export function fusionnerVoyage(local, recu) {
   if (!local) return recu
   const out = { ...local, ...recu, date: local.date }
-  if (recu.itineraire?.vide && !local.itineraire?.vide) out.itineraire = local.itineraire
+  out.itineraire = fusionnerPlans(local.itineraire, recu.itineraire)
 
   if (local.valise || recu.valise) {
     const cle = (i) => `${i.g}|${i.t}`
