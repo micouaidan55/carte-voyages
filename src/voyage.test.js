@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { API_PAR_DEFAUT, createTrips, fusionnerTrajets, itineraireHtml, itineraireVide, itineraireTexte, lienCarte, trajetsHtml } from './voyage.js'
+import { API_PAR_DEFAUT, createTrips, fusionnerTrajets, itineraireHtml, itineraireVide, itineraireTexte, lienCarte, lienJournee, trajetsHtml } from './voyage.js'
 
 function memoryStorage() {
   const data = {}
@@ -113,5 +113,38 @@ describe('plan pendant le voyage', () => {
     expect(html).toMatch(/class="day today" id="jour-en-cours"/)
     expect(html).toContain('Aujourd’hui')
     expect(itineraireHtml(it2, 'Japon')).not.toContain('today')
+  })
+})
+
+describe('journée sur la carte', () => {
+  const jour = {
+    lieu: 'Kyoto',
+    activites: [
+      { moment: 'soir', titre: 'Gion' },
+      { moment: 'matin', titre: 'Fushimi Inari' },
+      { moment: 'après-midi', titre: 'Kiyomizu-dera' },
+    ],
+    restaurants: [
+      { repas: 'dîner', nom: 'Ganko' },
+      { repas: 'déjeuner', nom: '', cuisine: 'ramen' },
+      { repas: 'déjeuner', nom: 'Nishiki' },
+    ],
+  }
+  it('relie les lieux de la journée dans l’ordre, à pied', () => {
+    const url = new URL(lienJournee(jour, 'Japon'))
+    expect(url.origin + url.pathname).toBe('https://www.google.com/maps/dir/')
+    expect(url.searchParams.get('origin')).toBe('Fushimi Inari, Kyoto, Japon')
+    expect(url.searchParams.get('waypoints')).toBe('Nishiki, Kyoto, Japon|Kiyomizu-dera, Kyoto, Japon|Ganko, Kyoto, Japon')
+    expect(url.searchParams.get('destination')).toBe('Gion, Kyoto, Japon')
+    expect(url.searchParams.get('travelmode')).toBe('walking')
+  })
+  it('ne propose rien avec moins de deux lieux', () => {
+    expect(lienJournee({ lieu: 'Kyoto', activites: [{ titre: 'Gion' }], restaurants: [] }, 'Japon')).toBeNull()
+  })
+  it('garde au plus dix lieux', () => {
+    const beaucoup = { lieu: 'Kyoto', activites: Array.from({ length: 14 }, (_, i) => ({ moment: 'matin', titre: `Lieu ${i}` })) }
+    const url = new URL(lienJournee(beaucoup, 'Japon'))
+    expect(url.searchParams.get('waypoints').split('|')).toHaveLength(8)
+    expect(itineraireHtml({ titre: 'x', jours: [{ numero: 1, ...jour }] }, 'Japon')).toContain('class="day-map"')
   })
 })

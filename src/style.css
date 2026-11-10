@@ -1230,6 +1230,15 @@ body.fiche-open .bottom .toast {
   gap: 12px;
 }
 
+.day-map {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--visited);
+  text-decoration: none;
+}
+
 .acts li {
   border-left: 3px solid var(--line);
   padding-left: 10px;

@@ -116,6 +116,24 @@ export function lienCarte(...termes) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`
 }
 
+// Toute la journée sur Google Maps, d'un lieu à l'autre et à pied, dans l'ordre de la journée.
+const ORDRE_JOURNEE = { matin: 0, déjeuner: 1, 'après-midi': 2, dîner: 3, soir: 4 }
+export function lienJournee(jour, pays) {
+  const ou = (nom) => [nom, jour.lieu, pays].filter(Boolean).join(', ')
+  const lieux = [
+    ...(jour.activites ?? []).map((a) => ({ rang: ORDRE_JOURNEE[a.moment] ?? 2, nom: a.titre })),
+    ...(jour.restaurants ?? []).map((r) => ({ rang: ORDRE_JOURNEE[r.repas] ?? 3, nom: r.nom })),
+  ]
+    .filter((l) => typeof l.nom === 'string' && l.nom.trim())
+    .sort((a, b) => a.rang - b.rang) // tri stable : l'ordre du plan est gardé à moment égal
+    .slice(0, 10)
+    .map((l) => ou(l.nom.trim()))
+  if (lieux.length < 2) return null
+  const p = new URLSearchParams({ api: '1', origin: lieux[0], destination: lieux.at(-1), travelmode: 'walking' })
+  if (lieux.length > 2) p.set('waypoints', lieux.slice(1, -1).join('|'))
+  return `https://www.google.com/maps/dir/?${p}`
+}
+
 const MOMENTS = { matin: '☀️ Matin', 'après-midi': '🌤️ Après-midi', soir: '🌙 Soir' }
 
 // Voyage créé sans IA : seulement la destination, pour réserver tout de suite.
@@ -192,6 +210,7 @@ export function itineraireHtml(it, pays, { edition = false, depart = null, aujou
       const outils = edition
         ? `<span class="plan-jour-outils"><button class="link" type="button" data-edit-jour="${jn}">Modifier</button><button class="link danger" type="button" data-suppr-jour="${jn}">Retirer</button></span>`
         : ''
+      const carte = lienJournee(j, pays)
       const enCours = jn === aujourdhui
       const quand = depart ? ` · ${esc(dateDuJour(depart, jn))}` : ''
       return `<article class="day${enCours ? ' today' : ''}"${enCours ? ' id="jour-en-cours"' : ''}>
@@ -200,6 +219,7 @@ export function itineraireHtml(it, pays, { edition = false, depart = null, aujou
         <h4>${esc(j.titre)}</h4>
         ${j.deplacement ? `<p class="move">🚆 ${esc(j.deplacement)}</p>` : ''}
         <ul class="acts">${activites}${restos}</ul>
+        ${carte && !edition ? `<a class="day-map" href="${esc(carte)}" target="_blank" rel="noopener">🗺️ Voir la journée sur Google Maps ↗</a>` : ''}
         ${ajout}
       </article>`
     })
