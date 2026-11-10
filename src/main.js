@@ -30,7 +30,7 @@ import { aReserver, departPropose, plusJours } from './reserver.js'
 import { CATEGORIES, bilan, equilibre, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
 import { ajouterActivite, ajouterJour, ajouterRestaurant, modifierJour, retirerElement, retirerJour } from './plan.js'
 import { CLE_LIEN, decoderVoyage, encoderVoyage, fusionnerVoyage, nettoyerVoyage } from './invitation.js'
-import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage } from './rappels.js'
+import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage, jourEnCours } from './rappels.js'
 import {
   API_PAR_DEFAUT,
   ENVIES,
@@ -739,7 +739,11 @@ function renderList() {
         li.innerHTML = `<button class="row" type="button"><span class="flag">${flagOf(t.code)}</span><span class="name"><span class="trip-name"></span><small></small></span></button><button class="remove" type="button">Supprimer</button>`
         li.querySelector('.trip-name').textContent = t.itineraire.titre
         const rebours = t.reserver?.depart ? compteARebours(t.reserver.depart, plusJours(t.reserver.depart, t.demande.jours), aujourdhui()) : null
-        li.querySelector('small').textContent = `${t.demande.jours} jour${t.demande.jours > 1 ? 's' : ''} · ${rebours ?? `préparé le ${quand}`}`
+        const i = jourEnCours(t.reserver?.depart, t.itineraire.jours?.length ?? 0, aujourdhui())
+        const jour = i == null ? null : t.itineraire.jours[i]
+        li.querySelector('small').textContent = jour
+          ? `📍 Aujourd’hui : jour ${jour.numero}${jour.lieu ? ` à ${jour.lieu}` : ''} · ${jour.titre}`
+          : `${t.demande.jours} jour${t.demande.jours > 1 ? 's' : ''} · ${rebours ?? `préparé le ${quand}`}`
         li.querySelector('.row').addEventListener('click', () => openTrip(t.id))
         li.querySelector('.remove').addEventListener('click', () => {
           const removed = trips.remove(t.id)
@@ -1682,6 +1686,7 @@ function openTrip(id) {
   renderPlan()
   voyageView('result')
   showModal($('voyage'))
+  allerAuJourEnCours()
 }
 
 function lireFormulaire() {
@@ -1769,7 +1774,19 @@ let editionPlan = false
 
 function renderPlan() {
   if (!tripShown) return
-  $('v-result').innerHTML = itineraireHtml(tripShown.itineraire, nameOf(tripShown.code), { edition: editionPlan })
+  const t = tripShown
+  const depart = t.reserver?.depart ?? null // seulement une vraie date choisie, pas une date proposée
+  $('v-result').innerHTML = itineraireHtml(t.itineraire, nameOf(t.code), {
+    edition: editionPlan,
+    depart,
+    aujourdhui: jourEnCours(depart, t.itineraire.jours?.length ?? 0, aujourdhui()),
+  })
+}
+
+// Pendant le séjour, le voyage s'ouvre sur le jour en cours.
+function allerAuJourEnCours() {
+  const jour = $('jour-en-cours')
+  if (jour) requestAnimationFrame(() => jour.scrollIntoView({ block: 'start' }))
 }
 
 function savePlan(it, garderFocus) {

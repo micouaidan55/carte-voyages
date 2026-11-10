@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aFaireMaintenant, compteARebours, echeance, icsVoyage, joursAvant } from './rappels.js'
+import { aFaireMaintenant, compteARebours, echeance, icsVoyage, jourEnCours, joursAvant } from './rappels.js'
 import { genererValise } from './valise.js'
 
 describe('dates limites', () => {
@@ -52,5 +52,16 @@ describe('calendrier', () => {
 
   it('plie les lignes trop longues', () => {
     for (const l of ics.split('\r\n')) expect(new TextEncoder().encode(l).length).toBeLessThanOrEqual(75)
+  })
+})
+
+describe('jour en cours pendant le voyage', () => {
+  it('donne le numéro du jour seulement pendant le séjour', () => {
+    expect(jourEnCours('2027-05-12', 5, '2027-05-11')).toBeNull()
+    expect(jourEnCours('2027-05-12', 5, '2027-05-12')).toBe(0)
+    expect(jourEnCours('2027-05-12', 5, '2027-05-14')).toBe(2)
+    expect(jourEnCours('2027-05-12', 5, '2027-05-16')).toBe(4)
+    expect(jourEnCours('2027-05-12', 5, '2027-05-17')).toBeNull()
+    expect(jourEnCours(null, 5, '2027-05-12')).toBeNull()
   })
 })

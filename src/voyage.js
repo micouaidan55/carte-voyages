@@ -134,7 +134,13 @@ export function itineraireVide(demande, capitale = '') {
 
 // Itinéraire en HTML. Tout texte venant de Claude (ou d'un lien d'invitation) est échappé.
 // En mode édition, chaque élément a son bouton ✕ et chaque jour un petit formulaire d'ajout.
-export function itineraireHtml(it, pays, { edition = false } = {}) {
+const dateDuJour = (depart, n) => {
+  const d = new Date(`${depart}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+}
+
+export function itineraireHtml(it, pays, { edition = false, depart = null, aujourdhui = null } = {}) {
   if (it.vide && !edition) {
     return `<div class="trip-result">
     <h3 class="trip-title">${esc(it.titre)}</h3>
@@ -186,8 +192,11 @@ export function itineraireHtml(it, pays, { edition = false } = {}) {
       const outils = edition
         ? `<span class="plan-jour-outils"><button class="link" type="button" data-edit-jour="${jn}">Modifier</button><button class="link danger" type="button" data-suppr-jour="${jn}">Retirer</button></span>`
         : ''
-      return `<article class="day">
-        <header><span class="day-num">Jour ${esc(j.numero)}</span><span class="day-place">${esc(j.lieu)}</span>${outils}</header>
+      const enCours = jn === aujourdhui
+      const quand = depart ? ` · ${esc(dateDuJour(depart, jn))}` : ''
+      return `<article class="day${enCours ? ' today' : ''}"${enCours ? ' id="jour-en-cours"' : ''}>
+        ${enCours ? '<p class="today-badge">📍 Aujourd’hui</p>' : ''}
+        <header><span class="day-num">Jour ${esc(j.numero)}${quand}</span><span class="day-place">${esc(j.lieu)}</span>${outils}</header>
         <h4>${esc(j.titre)}</h4>
         ${j.deplacement ? `<p class="move">🚆 ${esc(j.deplacement)}</p>` : ''}
         <ul class="acts">${activites}${restos}</ul>

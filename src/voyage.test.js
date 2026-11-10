@@ -97,3 +97,21 @@ describe('voyage sans itinéraire', () => {
     expect(itineraireVide({ pays: 'Japon', ville: 'Kyoto', jours: 1 }).titre).toBe('Kyoto · 1 jour')
   })
 })
+
+describe('plan pendant le voyage', () => {
+  const it2 = {
+    titre: 'Tokyo',
+    jours: [
+      { numero: 1, lieu: 'Tokyo', titre: 'Arrivée', activites: [], restaurants: [] },
+      { numero: 2, lieu: 'Kyoto', titre: 'Temples', activites: [], restaurants: [] },
+    ],
+  }
+  it('affiche la date de chaque jour et met en avant celui en cours', () => {
+    const html = itineraireHtml(it2, 'Japon', { depart: '2027-05-12', aujourdhui: 1 })
+    expect(html).toContain('mer. 12 mai')
+    expect(html).toContain('jeu. 13 mai')
+    expect(html).toMatch(/class="day today" id="jour-en-cours"/)
+    expect(html).toContain('Aujourd’hui')
+    expect(itineraireHtml(it2, 'Japon')).not.toContain('today')
+  })
+})

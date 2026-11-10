@@ -1179,6 +1179,18 @@ body.fiche-open .bottom .toast {
   margin-bottom: 12px;
 }
 
+.day.today {
+  box-shadow: 0 0 0 2px var(--visited);
+  scroll-margin-top: 72px; /* sous la barre d’onglets collante */
+}
+
+.today-badge {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--visited);
+}
+
 .day header {
   display: flex;
   justify-content: space-between;

@@ -55,6 +55,13 @@ export function compteARebours(depart, retour, today) {
   return 'Voyage terminé'
 }
 
+// Pendant le séjour : index du jour en cours (0 = jour 1), sinon null.
+export function jourEnCours(depart, nbJours, today) {
+  if (!depart) return null
+  const i = joursEntre(depart, today)
+  return i >= 0 && i < nbJours ? i : null
+}
+
 // Démarches non faites dont la date est arrivée (ou dépassée).
 export function aFaireMaintenant(items, depart, today) {
   return items.filter((i) => {
