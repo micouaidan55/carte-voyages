@@ -1,4 +1,5 @@
 // Préparation de voyage : appel au serveur, voyages enregistrés, affichage d'un itinéraire.
+import { SOURCE_METEO, decrireTemps } from './meteo.js'
 
 export const API_PAR_DEFAUT = 'https://carte-voyages-api.onrender.com'
 const KEY_TRIPS = 'carte-voyages:voyages'
@@ -152,13 +153,20 @@ export function itineraireVide(demande, capitale = '') {
 
 // Itinéraire en HTML. Tout texte venant de Claude (ou d'un lien d'invitation) est échappé.
 // En mode édition, chaque élément a son bouton ✕ et chaque jour un petit formulaire d'ajout.
+function meteoHtml(m) {
+  if (!m) return ''
+  const t = decrireTemps(m.code)
+  const pluie = m.pluie >= 30 ? ` · pluie ${m.pluie} %` : ''
+  return `<p class="meteo">${t.emoji} ${esc(t.mot)} · ${esc(m.min)}° / ${esc(m.max)}°${esc(pluie)}</p>`
+}
+
 const dateDuJour = (depart, n) => {
   const d = new Date(`${depart}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + n)
   return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
-export function itineraireHtml(it, pays, { edition = false, depart = null, aujourdhui = null } = {}) {
+export function itineraireHtml(it, pays, { edition = false, depart = null, aujourdhui = null, meteo = null } = {}) {
   if (it.vide && !edition) {
     return `<div class="trip-result">
     <h3 class="trip-title">${esc(it.titre)}</h3>
@@ -217,6 +225,7 @@ export function itineraireHtml(it, pays, { edition = false, depart = null, aujou
         ${enCours ? '<p class="today-badge">📍 Aujourd’hui</p>' : ''}
         <header><span class="day-num">Jour ${esc(j.numero)}${quand}</span><span class="day-place">${esc(j.lieu)}</span>${outils}</header>
         <h4>${esc(j.titre)}</h4>
+        ${meteoHtml(meteo?.[jn])}
         ${j.deplacement ? `<p class="move">🚆 ${esc(j.deplacement)}</p>` : ''}
         <ul class="acts">${activites}${restos}</ul>
         ${carte && !edition ? `<a class="day-map" href="${esc(carte)}" target="_blank" rel="noopener">🗺️ Voir la journée sur Google Maps ↗</a>` : ''}
@@ -240,6 +249,7 @@ export function itineraireHtml(it, pays, { edition = false, depart = null, aujou
         : ''
     }
     ${auteur}
+    ${meteo && Object.keys(meteo).length ? `<p class="ai-note">Météo : <a href="${SOURCE_METEO.url}" target="_blank" rel="noopener">${SOURCE_METEO.nom}</a></p>` : ''}
   </div>`
 }
 

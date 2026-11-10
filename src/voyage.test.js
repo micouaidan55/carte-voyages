@@ -113,6 +113,10 @@ describe('plan pendant le voyage', () => {
     expect(html).toMatch(/class="day today" id="jour-en-cours"/)
     expect(html).toContain('Aujourd’hui')
     expect(itineraireHtml(it2, 'Japon')).not.toContain('today')
+    const meteo = { 1: { code: 63, max: 13, min: 8, pluie: 80 } }
+    const avec = itineraireHtml(it2, 'Japon', { depart: '2027-05-12', meteo })
+    expect(avec).toContain('🌧️ Pluie · 8° / 13° · pluie 80 %')
+    expect(avec.match(/class="meteo"/g)).toHaveLength(1)
   })
 })
 

@@ -23,6 +23,7 @@ import {
 } from './info.js'
 import { createStore, villeKey } from './store.js'
 import { loadVilles, searchVilles } from './villes.js'
+import { getMeteo, meteoUtile, placerLieu } from './meteo.js'
 import { PARTIES, fusionnerValise, genererValise, progression } from './valise.js'
 import { SOURCE, formatTaux, getTaux } from './taux.js'
 import { afficheSvg, svgEnPng } from './affiche.js'
@@ -1776,11 +1777,47 @@ function renderPlan() {
   if (!tripShown) return
   const t = tripShown
   const depart = t.reserver?.depart ?? null // seulement une vraie date choisie, pas une date proposée
+  const nb = t.itineraire.jours?.length ?? 0
   $('v-result').innerHTML = itineraireHtml(t.itineraire, nameOf(t.code), {
     edition: editionPlan,
     depart,
-    aujourdhui: jourEnCours(depart, t.itineraire.jours?.length ?? 0, aujourdhui()),
+    aujourdhui: jourEnCours(depart, nb, aujourdhui()),
+    meteo: meteoPlan?.cle === cleMeteo(t) ? meteoPlan.jours : null,
   })
+  if (meteoUtile(depart, nb, aujourdhui()) && meteoPlan?.cle !== cleMeteo(t)) chargerMeteo(t)
+}
+
+// Météo de chaque jour (quand le séjour est dans les 16 prochains jours), d'après le lieu du jour.
+let meteoPlan = null
+const cleMeteo = (t) => `${t.id}|${t.reserver?.depart}|${t.itineraire.jours?.map((j) => j.lieu).join('/')}`
+
+async function chargerMeteo(t) {
+  const cle = cleMeteo(t)
+  meteoPlan = { cle, jours: null } // une seule demande à la fois pour ce voyage
+  try {
+    const villes = await loadVilles()
+    const capitale = PAYS[t.code]?.capitale
+    const parLieu = new Map()
+    const jours = {}
+    for (const [i, j] of (t.itineraire.jours ?? []).entries()) {
+      const lieu = j.lieu || ''
+      if (!parLieu.has(lieu)) {
+        const pos = placerLieu(lieu, t.code, villes, capitale)
+        parLieu.set(lieu, pos ? getMeteo(pos.lat, pos.lon) : Promise.resolve(null))
+      }
+      const prev = await parLieu.get(lieu)
+      const m = prev?.[plusJours(t.reserver.depart, i)]
+      if (m) jours[i] = m
+    }
+    meteoPlan = { cle, jours }
+    if (tripShown?.id === t.id && cleMeteo(tripShown) === cle && !editionPlan && Object.keys(jours).length) {
+      const haut = $('v-body').scrollTop
+      renderPlan()
+      $('v-body').scrollTop = haut
+    }
+  } catch {
+    // Pas de météo : le plan reste affiché sans.
+  }
 }
 
 // Pendant le séjour, le voyage s'ouvre sur le jour en cours.

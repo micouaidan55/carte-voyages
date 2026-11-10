@@ -1230,6 +1230,12 @@ body.fiche-open .bottom .toast {
   gap: 12px;
 }
 
+.meteo {
+  margin: -4px 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .day-map {
   display: inline-block;
   margin-top: 12px;
@@ -2204,4 +2210,8 @@ body.typing .fiche {
   flex: 1;
   min-width: 0;
   font-size: 16px;
+}
+
+.ai-note a {
+  color: inherit;
 }
