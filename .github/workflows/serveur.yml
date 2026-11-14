@@ -1,0 +1,27 @@
+name: Serveur Render
+
+# Quand le dossier server/ change, demande à Render de redéployer le serveur.
+# L'adresse secrète du « Deploy Hook » de Render est rangée dans le secret RENDER_DEPLOY_HOOK.
+on:
+  push:
+    branches: [main]
+    paths: ['server/**', 'render.yaml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Relancer le déploiement sur Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Secret RENDER_DEPLOY_HOOK absent : redéployez à la main sur Render."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "Déploiement demandé à Render."
