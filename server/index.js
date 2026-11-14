@@ -3,6 +3,7 @@
 //   ANTHROPIC_API_KEY   clé de l'API Claude (obligatoire)
 //   CODE_ACCES          code à saisir dans l'application (obligatoire)
 //   LIMITE_JOUR         nombre maximum d'itinéraires par jour (défaut 20)
+//   LIMITE_QUESTIONS    nombre maximum de questions à l'assistant par jour (défaut 100)
 //   ORIGINES            adresses autorisées, séparées par des virgules
 //   PORT                port d'écoute (fourni par Render)
 import http from 'node:http'
@@ -10,6 +11,7 @@ import { timingSafeEqual } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import { FORMAT, SYSTEM, consigne, validerDemande, verifierItineraire } from './itineraire.js'
 import { FORMAT_VOLS, SYSTEM_VOLS, consigneVols, nettoyerTrajets, validerTexte } from './vols.js'
+import { SYSTEM_QUESTION, messagesQuestion, validerQuestion } from './question.js'
 
 const PORT = Number(process.env.PORT) || 8787
 const CODE = process.env.CODE_ACCES ?? ''
@@ -22,16 +24,29 @@ const SIMULATION = process.env.SIMULATION === '1' // pour tester sans appeler Cl
 
 const client = SIMULATION ? null : new Anthropic()
 
+const LIMITE_QUESTIONS = Number(process.env.LIMITE_QUESTIONS) || 100
+
 let jour = ''
 let compteur = 0
+let questions = 0
 
-function quota() {
+function nouveauJour() {
   const aujourdhui = new Date().toISOString().slice(0, 10)
   if (aujourdhui !== jour) {
     jour = aujourdhui
     compteur = 0
+    questions = 0
   }
+}
+
+function quota() {
+  nouveauJour()
   return LIMITE - compteur
+}
+
+function quotaQuestions() {
+  nouveauJour()
+  return LIMITE_QUESTIONS - questions
 }
 
 function codeValide(recu) {
@@ -115,6 +130,28 @@ async function lireReservation(texte) {
   return nettoyerTrajets(JSON.parse(brut ?? '{}'))
 }
 
+async function repondreQuestion(demande) {
+  if (SIMULATION) return `Réponse de test à « ${demande.question} ». Touchez 🧳 en haut de l’écran pour ouvrir votre voyage.`
+  const message = await client.beta.messages.create({
+    model: 'claude-opus-5-5',
+    max_tokens: 8000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: 'low' },
+    system: SYSTEM_QUESTION,
+    messages: messagesQuestion(demande),
+  })
+  if (message.stop_reason === 'refusal') throw new Error('Je ne peux pas répondre à cette question')
+  const texte = message.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim()
+  console.log(`question : ${message.usage.input_tokens} entrée, ${message.usage.output_tokens} sortie`)
+  if (!texte) throw new Error('Pas de réponse, reformulez votre question')
+  return texte
+}
+
 function simulation(d) {
   return {
     titre: `${d.jours} jours en ${d.pays} (simulation)`,
@@ -156,7 +193,7 @@ const serveur = http.createServer(async (req, res) => {
 
   // Sert aussi à réveiller le serveur (Render gratuit s'endort après 15 min).
   if (req.method === 'GET' && url.pathname === '/api/sante') {
-    return repondre(res, 200, { ok: true, restant: quota(), configure: Boolean(CODE) }, origin)
+    return repondre(res, 200, { ok: true, restant: quota(), questions: quotaQuestions(), configure: Boolean(CODE) }, origin)
   }
 
   if (req.method === 'POST' && url.pathname === '/api/itineraire') {
@@ -173,6 +210,32 @@ const serveur = http.createServer(async (req, res) => {
       return repondre(res, 200, { itineraire: await demanderAClaude(demande), restant: quota() }, origin)
     } catch (e) {
       console.error('échec itinéraire', e?.status ?? '', e?.message)
+      const message =
+        e instanceof Anthropic.RateLimitError
+          ? 'Claude est très demandé, réessayez dans une minute'
+          : e instanceof Anthropic.AuthenticationError
+            ? 'Clé Claude invalide sur le serveur'
+            : e instanceof Anthropic.APIError
+              ? 'Claude ne répond pas, réessayez'
+              : e.message || 'Erreur inconnue'
+      return repondre(res, 502, { erreur: message }, origin)
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/question') {
+    if (!codeValide(req.headers['x-code-acces'])) return repondre(res, 401, { erreur: 'Code d’accès incorrect' }, origin)
+    if (quotaQuestions() <= 0) return repondre(res, 429, { erreur: `Limite de ${LIMITE_QUESTIONS} questions par jour atteinte` }, origin)
+    let demande
+    try {
+      demande = validerQuestion(await lireCorps(req))
+    } catch (e) {
+      return repondre(res, 400, { erreur: e instanceof SyntaxError ? 'Demande illisible' : e.message }, origin)
+    }
+    questions++
+    try {
+      return repondre(res, 200, { reponse: await repondreQuestion(demande), restant: quotaQuestions() }, origin)
+    } catch (e) {
+      console.error('échec question', e?.status ?? '', e?.message)
       const message =
         e instanceof Anthropic.RateLimitError
           ? 'Claude est très demandé, réessayez dans une minute'

@@ -31,6 +31,7 @@ import { aReserver, departPropose, plusJours } from './reserver.js'
 import { CATEGORIES, bilan, equilibre, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
 import { ajouterActivite, ajouterJour, ajouterRestaurant, modifierJour, retirerElement, retirerJour } from './plan.js'
 import { CLE_LIEN, decoderVoyage, encoderVoyage, fusionnerVoyage, nettoyerVoyage } from './invitation.js'
+import { ETAPES, KEY_VISITE, contexteAssistant, positionBulle, suggestions } from './assistant.js'
 import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage, jourEnCours } from './rappels.js'
 import {
   API_PAR_DEFAUT,
@@ -41,6 +42,7 @@ import {
   itineraireVide,
   fusionnerTrajets,
   lireReservation,
+  poserQuestion,
   trajetsHtml,
   reveiller,
 } from './voyage.js'
@@ -2095,6 +2097,215 @@ store.subscribe(() => {
   if (input.value) renderResults()
 })
 
+// ---------- Assistant (questions à Claude) ----------
+let conversation = [] // { role: 'user' | 'assistant', texte, erreur? }
+let voyageAssistant = null // voyage dont on parle, s'il y en a un
+let retourVoyage = null // rouvrir ce voyage en fermant l'assistant
+let questionEnCours = null
+
+function ouvrirAssistant(depuisVoyage = null) {
+  retourVoyage = depuisVoyage?.id ?? null
+  voyageAssistant = depuisVoyage ?? voyageAOuvrir()
+  $('a-sujet').textContent = voyageAssistant
+    ? `Je connais votre voyage « ${voyageAssistant.itineraire.titre} » et l’application. Posez votre question.`
+    : 'Je réponds à vos questions sur l’application et sur vos voyages.'
+  renderAssistant()
+  showModal($('assistant'))
+  // Le serveur gratuit s'endort : on le réveille pendant que l'utilisateur écrit.
+  reveiller(trips.api.url).catch(() => {})
+}
+
+function bulle(m) {
+  const d = document.createElement('div')
+  d.className = `a-msg ${m.role}${m.erreur ? ' erreur' : ''}`
+  d.textContent = m.texte
+  if (m.reglages) {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'button small'
+    b.textContent = 'Ouvrir les réglages'
+    b.addEventListener('click', openSettings)
+    d.append(b)
+  }
+  return d
+}
+
+function renderAssistant() {
+  const box = $('a-messages')
+  const enAttente = questionEnCours ? [{ role: 'assistant', texte: 'Je réfléchis…', attente: true }] : []
+  box.replaceChildren(
+    ...[...conversation, ...enAttente].map((m) => {
+      const d = bulle(m)
+      if (m.attente) d.classList.add('attente')
+      return d
+    }),
+  )
+  $('a-effacer').hidden = conversation.length === 0
+  const sugg = $('a-suggestions')
+  sugg.hidden = conversation.length > 0
+  sugg.replaceChildren(
+    ...suggestions(voyageAssistant).map((q) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'a-sugg'
+      b.textContent = q
+      b.addEventListener('click', () => envoyerQuestion(q))
+      return b
+    }),
+  )
+  $('a-envoyer').disabled = Boolean(questionEnCours)
+  requestAnimationFrame(() => ($('a-body').scrollTop = $('a-body').scrollHeight))
+}
+
+async function envoyerQuestion(texte) {
+  const question = texte.trim()
+  if (!question || questionEnCours) return
+  const historique = conversation.filter((m) => !m.erreur).map((m) => ({ role: m.role, texte: m.texte }))
+  conversation.push({ role: 'user', texte: question })
+  $('a-question').value = ''
+  ajusterQuestion()
+  if (!trips.api.code) {
+    conversation.push({ role: 'assistant', erreur: true, reglages: true, texte: 'Pour me poser des questions, entrez d’abord le code d’accès du serveur dans les Réglages (rubrique « Préparation de voyage »).' })
+    return renderAssistant()
+  }
+  questionEnCours = new AbortController()
+  renderAssistant()
+  try {
+    const contexte = contexteAssistant({
+      aujourdhui: aujourdhui(),
+      origine: store.home,
+      visites: store.visited.codes(),
+      envies: store.wish.codes(),
+      voyage: voyageAssistant,
+      nomPays: nameOf,
+    })
+    const reponse = await poserQuestion(trips.api, { question, historique, contexte }, questionEnCours.signal)
+    conversation.push({ role: 'assistant', texte: reponse })
+  } catch (e) {
+    if (e?.name !== 'AbortError') conversation.push({ role: 'assistant', erreur: true, texte: e.message })
+  } finally {
+    questionEnCours = null
+    renderAssistant()
+  }
+}
+
+function ajusterQuestion() {
+  const t = $('a-question')
+  t.style.height = 'auto'
+  t.style.height = `${Math.min(t.scrollHeight, 140)}px`
+}
+
+$('btn-assistant').addEventListener('click', () => ouvrirAssistant())
+$('v-assistant').addEventListener('click', () => ouvrirAssistant(tripShown))
+$('a-close').addEventListener('click', () => {
+  const id = retourVoyage
+  retourVoyage = null
+  if (id && trips.get(id)) openTrip(id)
+  else hideModal()
+})
+$('a-effacer').addEventListener('click', () => {
+  questionEnCours?.abort()
+  conversation = []
+  renderAssistant()
+})
+$('a-form').addEventListener('submit', (e) => {
+  e.preventDefault()
+  envoyerQuestion($('a-question').value)
+})
+$('a-question').addEventListener('input', ajusterQuestion)
+$('a-question').addEventListener('keydown', (e) => {
+  // Entrée envoie (Maj + Entrée pour aller à la ligne), sauf sur téléphone où Entrée va à la ligne.
+  if (e.key === 'Enter' && !e.shiftKey && !matchMedia('(pointer: coarse)').matches) {
+    e.preventDefault()
+    envoyerQuestion($('a-question').value)
+  }
+})
+
+// ---------- Visite guidée du démarrage ----------
+let etapeVisite = -1
+
+function lancerVisite() {
+  hideModal()
+  closeFiche()
+  closeSearch()
+  etapeVisite = 0
+  $('visite').hidden = false
+  document.body.classList.add('visite-ouverte')
+  montrerEtape()
+  $('visite-suiv').focus()
+}
+
+function finirVisite() {
+  etapeVisite = -1
+  $('visite').hidden = true
+  document.body.classList.remove('visite-ouverte')
+  try {
+    localStorage.setItem(KEY_VISITE, '1')
+  } catch {
+    // Stockage indisponible : la visite reviendra au prochain lancement.
+  }
+}
+
+function montrerEtape() {
+  const e = ETAPES[etapeVisite]
+  if (!e) return finirVisite()
+  $('visite-etape').textContent = `${etapeVisite + 1} / ${ETAPES.length}`
+  $('visite-titre').textContent = e.titre
+  $('visite-texte').textContent = e.texte
+  $('visite-prec').hidden = etapeVisite === 0
+  $('visite-suiv').textContent = etapeVisite === ETAPES.length - 1 ? 'C’est parti !' : 'Suivant'
+  $('visite-passer').hidden = etapeVisite === ETAPES.length - 1
+
+  const cible = e.cible ? document.querySelector(e.cible) : null
+  const rect = cible && !cible.hidden && cible.offsetParent !== null ? cible.getBoundingClientRect() : null
+  const cadre = $('visite-cadre')
+  const bulleEl = $('visite-bulle')
+  const vh = window.innerHeight
+  const position = positionBulle(rect, vh)
+  $('visite').classList.toggle('sans-cible', !rect)
+  cadre.hidden = !rect
+  bulleEl.style.top = ''
+  bulleEl.style.bottom = ''
+  bulleEl.dataset.position = position
+  if (rect) {
+    const m = 6
+    Object.assign(cadre.style, {
+      top: `${rect.top - m}px`,
+      left: `${rect.left - m}px`,
+      width: `${rect.width + 2 * m}px`,
+      height: `${rect.height + 2 * m}px`,
+    })
+    if (position === 'dessous') bulleEl.style.top = `${rect.bottom + 16}px`
+    else bulleEl.style.bottom = `${vh - rect.top + 16}px`
+  }
+}
+
+$('visite-suiv').addEventListener('click', () => {
+  etapeVisite++
+  montrerEtape()
+})
+$('visite-prec').addEventListener('click', () => {
+  etapeVisite = Math.max(0, etapeVisite - 1)
+  montrerEtape()
+})
+$('visite-passer').addEventListener('click', finirVisite)
+$('btn-visite').addEventListener('click', lancerVisite)
+document.addEventListener('keydown', (e) => {
+  if (etapeVisite < 0) return
+  if (e.key === 'Escape') finirVisite()
+  if (e.key === 'ArrowRight') $('visite-suiv').click()
+  if (e.key === 'ArrowLeft' && etapeVisite > 0) $('visite-prec').click()
+})
+window.addEventListener('resize', () => etapeVisite >= 0 && montrerEtape())
+
+function visiteDejaVue() {
+  try {
+    return localStorage.getItem(KEY_VISITE) === '1'
+  } catch {
+    return true
+  }
+}
+
 layout()
 paint()
 updateStats()
@@ -2104,7 +2315,10 @@ window.addEventListener('resize', () => {
 })
 
 navigator.storage?.persist?.().catch(() => {})
+const avecInvitation = location.hash.startsWith(`#${CLE_LIEN}=`)
 lireInvitationDansAdresse()
+// Premier lancement : l'assistant présente l'application (pas quand on arrive par une invitation).
+if (!avecInvitation && !visiteDejaVue()) setTimeout(lancerVisite, 700)
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {})

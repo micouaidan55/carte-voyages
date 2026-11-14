@@ -253,6 +253,24 @@ export function itineraireHtml(it, pays, { edition = false, depart = null, aujou
   </div>`
 }
 
+export async function poserQuestion({ url, code }, demande, signal) {
+  let r
+  try {
+    r = await fetch(`${base(url)}/api/question`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Code-Acces': code },
+      body: JSON.stringify(demande),
+      signal,
+    })
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e
+    throw new Error('Pas de connexion au serveur. Vérifiez votre réseau.')
+  }
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(data.erreur || `Erreur du serveur (${r.status})`)
+  return data.reponse
+}
+
 export async function lireReservation({ url, code }, texte) {
   let r
   try {

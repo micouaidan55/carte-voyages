@@ -46,6 +46,8 @@
 
       <p id="hint" class="hint">Touchez un pays pour voir sa fiche</p>
 
+      <button id="btn-assistant" class="fab fab-assistant" type="button" aria-label="Poser une question à l’assistant" aria-haspopup="dialog">💬</button>
+
       <button id="btn-reset" class="fab" type="button" aria-label="Voir le monde entier">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="8.5" />
@@ -150,6 +152,7 @@
         <div class="grabber" aria-hidden="true"></div>
         <header class="sheet-head">
           <h2 id="v-title">Préparer un voyage</h2>
+          <button id="v-assistant" class="link" type="button" aria-label="Poser une question sur ce voyage">💬</button>
           <button id="v-share" class="link" type="button" hidden>Inviter</button>
           <button id="v-close" class="link strong" type="button">Fermer</button>
         </header>
@@ -344,6 +347,12 @@
             <button id="btn-invitation" class="button secondary" type="button">📩 Coller une invitation</button>
           </div>
 
+          <h3>Aide</h3>
+          <p class="help">Revoir la présentation de l’application, ou poser une question à l’assistant (bouton 💬).</p>
+          <div class="buttons">
+            <button id="btn-visite" class="button secondary" type="button">👋 Revoir la visite guidée</button>
+          </div>
+
           <h3>Sauvegarde</h3>
           <p class="help">Vos pays restent sur ce téléphone. Gardez une copie au cas où vous changez d'appareil.</p>
           <div class="buttons">
@@ -355,6 +364,37 @@
           </div>
         </div>
       </section>
+      <section id="assistant" class="sheet modal tall" role="dialog" aria-modal="true" aria-labelledby="a-title" hidden>
+        <div class="grabber" aria-hidden="true"></div>
+        <header class="sheet-head">
+          <h2 id="a-title">💬 Assistant</h2>
+          <button id="a-effacer" class="link" type="button" hidden>Effacer</button>
+          <button id="a-close" class="link strong" type="button">Fermer</button>
+        </header>
+        <div id="a-body" class="a-body">
+          <p id="a-sujet" class="help"></p>
+          <div id="a-messages" class="a-messages" aria-live="polite"></div>
+          <div id="a-suggestions" class="a-suggestions"></div>
+        </div>
+        <form id="a-form" class="a-form" autocomplete="off">
+          <textarea id="a-question" class="v-input" rows="1" maxlength="1000" placeholder="Votre question…" aria-label="Votre question"></textarea>
+          <button id="a-envoyer" class="button" type="submit" aria-label="Envoyer">➤</button>
+        </form>
+      </section>
+
+      <div id="visite" class="visite" hidden>
+        <div id="visite-cadre" class="visite-cadre"></div>
+        <div id="visite-bulle" class="visite-bulle" role="dialog" aria-modal="true" aria-labelledby="visite-titre">
+          <p id="visite-etape" class="visite-etape"></p>
+          <h2 id="visite-titre"></h2>
+          <p id="visite-texte"></p>
+          <div class="visite-boutons">
+            <button id="visite-passer" class="link" type="button">Passer</button>
+            <button id="visite-prec" class="button secondary" type="button">Précédent</button>
+            <button id="visite-suiv" class="button" type="button">Suivant</button>
+          </div>
+        </div>
+      </div>
     </main>
     <script type="module" src="./src/main.js"></script>
   </body>
