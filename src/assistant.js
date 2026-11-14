@@ -1,4 +1,5 @@
 // Assistant de l'application : contexte envoyé avec une question, et visite guidée du démarrage.
+import { ajouterActivite, ajouterJour, ajouterRestaurant, retirerElement } from './plan.js'
 
 export const KEY_VISITE = 'carte-voyages:visite'
 
@@ -87,7 +88,7 @@ export const ETAPES = [
   {
     cible: '#btn-assistant',
     titre: '💬 Une question ?',
-    texte: 'Touchez ce bouton à tout moment : je réponds à vos questions sur l’application et sur vos voyages. Bon voyage !',
+    texte: 'Touchez ce bouton à tout moment : je réponds à vos questions sur l’application et sur vos voyages, et je peux proposer des ajouts à votre plan, que vous validez d’un toucher. Bon voyage !',
   },
 ]
 
@@ -95,4 +96,37 @@ export const ETAPES = [
 export function positionBulle(rect, hauteurEcran) {
   if (!rect) return 'centre'
   return rect.top + rect.height / 2 < hauteurEcran / 2 ? 'dessous' : 'dessus'
+}
+
+// Ajouts au plan proposés par l'assistant : l'utilisateur les valide d'un toucher.
+const REPAS = ['déjeuner', 'dîner']
+const MOMENTS_TEXTE = { matin: 'Matin', 'après-midi': 'Après-midi', soir: 'Soir', déjeuner: 'Déjeuner', dîner: 'Dîner' }
+
+export const libelleProposition = (p) => `Jour ${p.jour} · ${MOMENTS_TEXTE[p.moment] ?? p.moment} : ${p.titre}`
+
+// Renvoie le nouveau plan, ou null si le jour n'existe pas (et ne peut pas être créé).
+export function appliquerProposition(it, p, joursPrevus = 0) {
+  let n = it
+  const j = p.jour - 1
+  // Plan encore vide ou incomplet : on crée les jours manquants, sans dépasser la durée du voyage.
+  if (j >= (n.jours?.length ?? 0)) {
+    if (p.jour > Math.max(joursPrevus, n.jours?.length ?? 0)) return null
+    const vide = n.vide
+    while ((n.jours?.length ?? 0) <= j) n = ajouterJour(n)
+    if (vide) n = { ...n, manuel: true }
+  }
+  return REPAS.includes(p.moment)
+    ? ajouterRestaurant(n, j, { repas: p.moment, nom: p.titre, pourquoi: p.detail })
+    : ajouterActivite(n, j, { moment: p.moment, titre: p.titre, detail: p.detail })
+}
+
+// Annule un ajout : retire l'élément ajouté à la main qui porte ce nom, ce jour-là.
+export function retirerProposition(it, p) {
+  const j = p.jour - 1
+  const jour = it.jours?.[j]
+  if (!jour) return it
+  const type = REPAS.includes(p.moment) ? 'restaurants' : 'activites'
+  const nom = (x) => (type === 'restaurants' ? x.nom : x.titre)
+  const i = jour[type].findLastIndex((x) => x.perso && nom(x) === p.titre)
+  return i < 0 ? it : retirerElement(it, j, type, i)
 }

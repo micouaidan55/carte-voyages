@@ -31,7 +31,16 @@ import { aReserver, departPropose, plusJours } from './reserver.js'
 import { CATEGORIES, bilan, equilibre, formatArgent, lireMontant, nouvelleDepense } from './depenses.js'
 import { ajouterActivite, ajouterJour, ajouterRestaurant, modifierJour, retirerElement, retirerJour } from './plan.js'
 import { CLE_LIEN, decoderVoyage, encoderVoyage, fusionnerVoyage, nettoyerVoyage } from './invitation.js'
-import { ETAPES, KEY_VISITE, contexteAssistant, positionBulle, suggestions } from './assistant.js'
+import {
+  ETAPES,
+  KEY_VISITE,
+  appliquerProposition,
+  contexteAssistant,
+  libelleProposition,
+  positionBulle,
+  retirerProposition,
+  suggestions,
+} from './assistant.js'
 import { aFaireMaintenant, aujourdhui, compteARebours, echeance, icsVoyage, jourEnCours } from './rappels.js'
 import {
   API_PAR_DEFAUT,
@@ -2127,7 +2136,45 @@ function bulle(m) {
     b.addEventListener('click', openSettings)
     d.append(b)
   }
+  if (m.propositions?.length && voyageAssistant) {
+    const liste = document.createElement('div')
+    liste.className = 'a-props'
+    for (const p of m.propositions) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = `a-prop${p.ajoute ? ' ajoute' : ''}`
+      b.textContent = p.erreur ? `⚠️ ${libelleProposition(p)} (ce jour n’existe pas)` : p.ajoute ? `✓ ${libelleProposition(p)}` : `＋ ${libelleProposition(p)}`
+      b.disabled = Boolean(p.erreur)
+      b.title = p.ajoute ? 'Ajouté au plan. Toucher pour annuler.' : p.detail
+      b.addEventListener('click', () => basculerProposition(p))
+      liste.append(b)
+    }
+    const aide = document.createElement('small')
+    aide.textContent = m.propositions.some((p) => p.ajoute) ? 'Touchez un ajout ✓ pour l’annuler.' : 'Touchez pour ajouter au plan.'
+    liste.append(aide)
+    d.append(liste)
+  }
   return d
+}
+
+// Ajoute (ou retire) au plan une proposition de l'assistant.
+function basculerProposition(p) {
+  const t = trips.get(voyageAssistant?.id)
+  if (!t) return
+  let it
+  if (p.ajoute) it = retirerProposition(t.itineraire, p)
+  else {
+    it = appliquerProposition(t.itineraire, p, t.demande?.jours ?? 0)
+    if (!it) {
+      p.erreur = true
+      return renderAssistant()
+    }
+  }
+  p.ajoute = !p.ajoute
+  const maj = trips.update(t.id, { itineraire: it })
+  voyageAssistant = maj
+  if (tripShown?.id === maj.id) tripShown = maj
+  renderAssistant()
 }
 
 function renderAssistant() {
@@ -2179,8 +2226,8 @@ async function envoyerQuestion(texte) {
       voyage: voyageAssistant,
       nomPays: nameOf,
     })
-    const reponse = await poserQuestion(trips.api, { question, historique, contexte }, questionEnCours.signal)
-    conversation.push({ role: 'assistant', texte: reponse })
+    const { reponse, propositions } = await poserQuestion(trips.api, { question, historique, contexte }, questionEnCours.signal)
+    conversation.push({ role: 'assistant', texte: reponse, propositions })
   } catch (e) {
     if (e?.name !== 'AbortError') conversation.push({ role: 'assistant', erreur: true, texte: e.message })
   } finally {

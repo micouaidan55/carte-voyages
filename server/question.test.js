@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SYSTEM_QUESTION, messagesQuestion, validerQuestion } from './question.js'
+import { FORMAT_QUESTION, SYSTEM_QUESTION, messagesQuestion, nettoyerReponse, validerQuestion } from './question.js'
 
 describe('assistant : questions', () => {
   it('refuse une question vide ou trop longue', () => {
@@ -36,5 +36,28 @@ describe('assistant : questions', () => {
   it('limite la taille du contexte', () => {
     const d = validerQuestion({ question: 'Ok ?', contexte: { gros: 'x'.repeat(20000) } })
     expect(d.contexte.length).toBe(8000)
+  })
+})
+
+describe('assistant : propositions d’ajout au plan', () => {
+  it('exige toutes les propriétés (sortie structurée stricte)', () => {
+    const p = FORMAT_QUESTION.properties.propositions.items
+    expect(p.required.sort()).toEqual(Object.keys(p.properties).sort())
+    expect(FORMAT_QUESTION.required.sort()).toEqual(Object.keys(FORMAT_QUESTION.properties).sort())
+  })
+
+  it('ne garde que des propositions valables', () => {
+    const r = nettoyerReponse({
+      reponse: '  Je vous propose deux ajouts.  ',
+      propositions: [
+        { jour: 2, moment: 'matin', titre: ' Musée Ghibli ', detail: 'Réserver un mois avant.' },
+        { jour: 0, moment: 'matin', titre: 'Jour impossible', detail: '' },
+        { jour: 3, moment: 'nuit', titre: 'Moment inconnu', detail: '' },
+        { jour: 1, moment: 'dîner', titre: '', detail: '' },
+      ],
+    })
+    expect(r.reponse).toBe('Je vous propose deux ajouts.')
+    expect(r.propositions).toEqual([{ jour: 2, moment: 'matin', titre: 'Musée Ghibli', detail: 'Réserver un mois avant.' }])
+    expect(nettoyerReponse(null)).toEqual({ reponse: '', propositions: [] })
   })
 })

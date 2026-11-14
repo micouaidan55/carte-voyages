@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ETAPES, contexteAssistant, positionBulle, suggestions } from './assistant.js'
+import { ETAPES, appliquerProposition, contexteAssistant, libelleProposition, positionBulle, retirerProposition, suggestions } from './assistant.js'
+import { itineraireVide } from './voyage.js'
 
 const noms = { FR: 'France', JP: 'Japon', IT: 'Italie' }
 const nomPays = (c) => noms[c] ?? c
@@ -44,5 +45,36 @@ describe('assistant', () => {
     expect(positionBulle({ top: 20, height: 40 }, 800)).toBe('dessous')
     expect(positionBulle({ top: 700, height: 56 }, 800)).toBe('dessus')
     expect(positionBulle(null, 800)).toBe('centre')
+  })
+})
+
+describe('ajouts proposés par l’assistant', () => {
+  const plan = {
+    titre: 'Japon',
+    etapes: ['Tokyo'],
+    jours: [
+      { numero: 1, lieu: 'Tokyo', titre: 'A', activites: [{ moment: 'soir', titre: 'Skytree' }], restaurants: [] },
+      { numero: 2, lieu: 'Tokyo', titre: 'B', activites: [], restaurants: [] },
+    ],
+  }
+
+  it('ajoute une activité au bon moment et un restaurant, puis les retire', () => {
+    let p = appliquerProposition(plan, { jour: 1, moment: 'matin', titre: 'Senso-ji', detail: 'Tôt' })
+    expect(p.jours[0].activites.map((a) => a.titre)).toEqual(['Senso-ji', 'Skytree'])
+    p = appliquerProposition(p, { jour: 2, moment: 'dîner', titre: 'Ichiran', detail: 'Ramen' })
+    expect(p.jours[1].restaurants[0]).toMatchObject({ nom: 'Ichiran', repas: 'dîner', pourquoi: 'Ramen', perso: true })
+    p = retirerProposition(p, { jour: 1, moment: 'matin', titre: 'Senso-ji' })
+    expect(p.jours[0].activites.map((a) => a.titre)).toEqual(['Skytree'])
+    expect(retirerProposition(p, { jour: 1, moment: 'soir', titre: 'Skytree' }).jours[0].activites).toHaveLength(1) // pas un ajout
+    expect(libelleProposition({ jour: 2, moment: 'après-midi', titre: 'Ueno' })).toBe('Jour 2 · Après-midi : Ueno')
+  })
+
+  it('crée les jours d’un plan vide sans dépasser la durée du voyage', () => {
+    const vide = itineraireVide({ pays: 'Japon', ville: 'Tokyo', jours: 3 })
+    const p = appliquerProposition(vide, { jour: 2, moment: 'matin', titre: 'Ueno', detail: '' }, 3)
+    expect(p).toMatchObject({ vide: false, manuel: true })
+    expect(p.jours).toHaveLength(2)
+    expect(p.jours[1].activites[0].titre).toBe('Ueno')
+    expect(appliquerProposition(vide, { jour: 5, moment: 'matin', titre: 'Trop loin', detail: '' }, 3)).toBeNull()
   })
 })

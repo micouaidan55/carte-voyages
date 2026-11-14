@@ -11,7 +11,7 @@ import { timingSafeEqual } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import { FORMAT, SYSTEM, consigne, validerDemande, verifierItineraire } from './itineraire.js'
 import { FORMAT_VOLS, SYSTEM_VOLS, consigneVols, nettoyerTrajets, validerTexte } from './vols.js'
-import { SYSTEM_QUESTION, messagesQuestion, validerQuestion } from './question.js'
+import { FORMAT_QUESTION, SYSTEM_QUESTION, messagesQuestion, nettoyerReponse, validerQuestion } from './question.js'
 
 const PORT = Number(process.env.PORT) || 8787
 const CODE = process.env.CODE_ACCES ?? ''
@@ -131,25 +131,29 @@ async function lireReservation(texte) {
 }
 
 async function repondreQuestion(demande) {
-  if (SIMULATION) return `Réponse de test à « ${demande.question} ». Touchez 🧳 en haut de l’écran pour ouvrir votre voyage.`
+  if (SIMULATION) {
+    const avecVoyage = demande.contexte.includes('voyageOuvert')
+    return {
+      reponse: `Réponse de test à « ${demande.question} ».${avecVoyage ? ' Je vous propose un ajout au plan.' : ''}`,
+      propositions: avecVoyage ? [{ jour: 1, moment: 'après-midi', titre: 'Musée de test', detail: 'Ajouté par la simulation.' }] : [],
+    }
+  }
   const message = await client.beta.messages.create({
     model: 'claude-opus-5-5',
     max_tokens: 8000,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
-    output_config: { effort: 'low' },
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMAT_QUESTION } },
     system: SYSTEM_QUESTION,
     messages: messagesQuestion(demande),
   })
   if (message.stop_reason === 'refusal') throw new Error('Je ne peux pas répondre à cette question')
-  const texte = message.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim()
+  if (message.stop_reason === 'max_tokens') throw new Error('Réponse trop longue, posez une question plus précise')
+  const brut = message.content.find((b) => b.type === 'text')?.text
   console.log(`question : ${message.usage.input_tokens} entrée, ${message.usage.output_tokens} sortie`)
-  if (!texte) throw new Error('Pas de réponse, reformulez votre question')
-  return texte
+  const r = nettoyerReponse(JSON.parse(brut ?? '{}'))
+  if (!r.reponse) throw new Error('Pas de réponse, reformulez votre question')
+  return r
 }
 
 function simulation(d) {
@@ -233,7 +237,7 @@ const serveur = http.createServer(async (req, res) => {
     }
     questions++
     try {
-      return repondre(res, 200, { reponse: await repondreQuestion(demande), restant: quotaQuestions() }, origin)
+      return repondre(res, 200, { ...(await repondreQuestion(demande)), restant: quotaQuestions() }, origin)
     } catch (e) {
       console.error('échec question', e?.status ?? '', e?.message)
       const message =

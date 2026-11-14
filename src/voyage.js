@@ -268,7 +268,7 @@ export async function poserQuestion({ url, code }, demande, signal) {
   }
   const data = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(data.erreur || `Erreur du serveur (${r.status})`)
-  return data.reponse
+  return { reponse: data.reponse, propositions: Array.isArray(data.propositions) ? data.propositions : [] }
 }
 
 export async function lireReservation({ url, code }, texte) {

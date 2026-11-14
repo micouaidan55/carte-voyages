@@ -2422,3 +2422,35 @@ body.typing .fiche {
 body.visite-ouverte .hint {
   opacity: 0;
 }
+
+.a-props {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 10px;
+  white-space: normal;
+}
+
+.a-prop {
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--visited);
+  background: var(--panel-solid);
+  color: var(--visited);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.a-prop.ajoute {
+  background: var(--visited);
+  color: #fff;
+}
+
+.a-props small {
+  color: var(--muted);
+  font-size: 13px;
+}
