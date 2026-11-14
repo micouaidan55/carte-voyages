@@ -963,6 +963,31 @@ body.fiche-open .bottom .toast {
 
 /* ---------- Préparer un voyage ---------- */
 
+.f-voyages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.action.ouvrir {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  text-align: left;
+  background: var(--visited);
+  border-color: transparent;
+  color: #fff;
+}
+
+.action.ouvrir small {
+  font-weight: 500;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
 .action.plan {
   background: var(--bg);
   border-color: transparent;

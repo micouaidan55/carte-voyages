@@ -299,6 +299,7 @@ function renderFiche() {
   renderMemory()
   renderCities()
   renderTrip()
+  renderVoyagesDuPays()
 
   const facts = []
   const fact = (dt, dd) => dd && facts.push(`<div><dt>${dt}</dt><dd>${esc(dd)}</dd></div>`)
@@ -836,6 +837,65 @@ for (const b of document.querySelectorAll('.tabs [role="tab"]')) {
     renderList()
   })
 }
+
+// Ouvrir un voyage déjà préparé : depuis la fiche du pays ou le bouton 🧳 en haut.
+function resumeVoyage(t) {
+  const i = jourEnCours(t.reserver?.depart, t.itineraire.jours?.length ?? 0, aujourdhui())
+  if (i != null) return `📍 En cours : jour ${i + 1}`
+  const nb = t.demande?.jours ?? t.itineraire.jours?.length ?? 0
+  const rebours = t.reserver?.depart ? compteARebours(t.reserver.depart, plusJours(t.reserver.depart, nb), aujourdhui()) : null
+  return `${nb} jour${nb > 1 ? 's' : ''}${rebours ? ` · ${rebours}` : ''}`
+}
+
+function renderVoyagesDuPays() {
+  const box = $('f-voyages')
+  const liste = trips.list().filter((t) => t.code === selected)
+  box.hidden = liste.length === 0
+  box.replaceChildren(
+    ...liste.map((t) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'action ouvrir'
+      b.innerHTML = '<span class="ouvrir-titre"></span><small></small>'
+      b.querySelector('.ouvrir-titre').textContent = `▶️ Ouvrir : ${t.itineraire.titre}`
+      b.querySelector('small').textContent = resumeVoyage(t)
+      b.addEventListener('click', () => openTrip(t.id))
+      return b
+    }),
+  )
+  $('f-plan').textContent = liste.length ? '🧳 Préparer un autre voyage' : '🧳 Préparer un voyage'
+}
+
+// Le voyage en cours d'abord, puis le prochain départ, sinon le plus récent.
+function voyageAOuvrir() {
+  const liste = trips.list()
+  const today = aujourdhui()
+  const enCours = liste.find((t) => jourEnCours(t.reserver?.depart, t.itineraire.jours?.length ?? 0, today) != null)
+  if (enCours) return enCours
+  if (liste.length === 1) return liste[0]
+  return null
+}
+
+function majBoutonVoyages() {
+  $('btn-trips').hidden = trips.list().length === 0
+}
+for (const m of ['add', 'remove', 'restore']) {
+  const f = trips[m]
+  if (typeof f === 'function') trips[m] = (...args) => {
+    const r = f.apply(trips, args)
+    majBoutonVoyages()
+    return r
+  }
+}
+majBoutonVoyages()
+
+$('btn-trips').addEventListener('click', () => {
+  const t = voyageAOuvrir()
+  if (t) return openTrip(t.id)
+  tab = 'trips'
+  renderList()
+  showModal($('sheet'))
+})
 
 $('btn-list').addEventListener('click', () => {
   renderList()
