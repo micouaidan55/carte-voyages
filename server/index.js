@@ -20,6 +20,7 @@ const ORIGINES = (process.env.ORIGINES ?? 'https://micouaidan55.github.io')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean)
+const VERSION = (process.env.RENDER_GIT_COMMIT ?? 'local').slice(0, 7) // commit en ligne, fourni par Render
 const SIMULATION = process.env.SIMULATION === '1' // pour tester sans appeler Claude
 
 const client = SIMULATION ? null : new Anthropic()
@@ -197,7 +198,7 @@ const serveur = http.createServer(async (req, res) => {
 
   // Sert aussi à réveiller le serveur (Render gratuit s'endort après 15 min).
   if (req.method === 'GET' && url.pathname === '/api/sante') {
-    return repondre(res, 200, { ok: true, restant: quota(), questions: quotaQuestions(), configure: Boolean(CODE) }, origin)
+    return repondre(res, 200, { ok: true, restant: quota(), questions: quotaQuestions(), configure: Boolean(CODE), version: VERSION }, origin)
   }
 
   if (req.method === 'POST' && url.pathname === '/api/itineraire') {
